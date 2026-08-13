@@ -1,24 +1,28 @@
 {
-  "name": "theme-lumina",
-  "displayName": "Lumina Theme",
-  "description": "Lumina dark theme — deep navy background with cyan and violet accents.",
+  "name": "theme-lumina-ide",
+  "displayName": "Lumina Themes Suite",
+  "description": "Official color themes for Lumina IDE — includes Lumina Dark, Lumina Cyberpunk, Lumina Yellow, and Lumina Light.",
   "categories": [
     "Themes"
   ],
+  "keywords": [
+    "theme",
+    "lumina",
+    "cyberpunk",
+    "dark theme",
+    "light theme",
+    "yellow",
+    "color-theme"
+  ],
   "version": "1.0.0",
-  "publisher": "lumina",
+  "publisher": "Lumina-IDE",
+  "icon": "icon.png",
   "license": "MIT",
   "engines": {
-    "vscode": "*"
+    "vscode": "^1.80.0"
   },
   "contributes": {
     "themes": [
-      {
-        "id": "Lumina Yellow",
-        "label": "Lumina Yellow",
-        "uiTheme": "vs-dark",
-        "path": "./themes/lumina_yellow.json"
-      },
       {
         "id": "Lumina Dark",
         "label": "Lumina Dark",
@@ -30,6 +34,12 @@
         "label": "Lumina Cyberpunk",
         "uiTheme": "vs-dark",
         "path": "./themes/lumina_cyberpunk.json"
+      },
+      {
+        "id": "Lumina Yellow",
+        "label": "Lumina Yellow",
+        "uiTheme": "vs-dark",
+        "path": "./themes/lumina_yellow.json"
       },
       {
         "id": "Lumina Light",
