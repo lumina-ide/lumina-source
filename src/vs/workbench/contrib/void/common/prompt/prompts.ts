@@ -7,6 +7,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IDirectoryStrService } from '../directoryStrService.js';
 import { StagingSelectionItem } from '../chatThreadServiceTypes.js';
+import { isLinux, isMacintosh, isWindows } from '../../../../../base/common/platform.js';
 import { os } from '../helpers/systemInfo.js';
 import { RawToolParamsObj } from '../sendLLMMessageTypes.js';
 import { approvalTypeOfBuiltinToolName, BuiltinToolCallParams, BuiltinToolName, BuiltinToolResultType, ToolName } from '../toolsServiceTypes.js';
@@ -438,7 +439,7 @@ Please assist the user with their query.`)
 
 	const sysInfo = (`Here is the user's system information:
 <system_info>
-- ${os}
+- Operating System: ${os ? os.toUpperCase() : 'UNKNOWN'} (${isWindows ? 'Windows Environment - Ensure terminal commands terminate correctly using cmd /c or PowerShell' : isMacintosh ? 'macOS Environment - Use POSIX bash/zsh' : isLinux ? 'Linux Environment - Use POSIX bash' : 'Unknown Environment'})
 
 - The user's workspace contains these folders:
 ${workspaceFolders.join('\n') || 'NO FOLDERS OPEN'}
@@ -469,6 +470,31 @@ ${directoryStr}
 		- If you need to analyze a structure, provide a critical and concise summary, NOT an exhaustive list of every file.
 		- If you encounter lock files (package-lock.json or yarn.lock), use them to infer the correct package manager.
 		- Respond only with the information necessary for the task. Avoid repeating information already provided in the <files_overview>.`)
+
+	details.push(`Environment & Framework Awareness:
+		- Operating System: ${os ? os.toUpperCase() : 'UNKNOWN'}. Always respect target OS conventions, shell execution rules, and path separators.
+		- BEFORE triggering framework-specific agent tools or CLI commands (e.g. Flutter, Cargo, npm, Python), inspect the root workspace to confirm relevant project definition files (e.g. pubspec.yaml for Flutter, package.json for Node, Cargo.toml for Rust, pyproject.toml/requirements.txt for Python) exist.
+		- NEVER trigger framework-specific tools (such as Flutter agent tools) unless explicit project definition files (e.g. pubspec.yaml) exist in the root workspace.
+		- On Windows: ensure shell executions in the terminal terminate cleanly (e.g. using 'cmd /c' or PowerShell as appropriate).`)
+
+	details.push(`Language Preference:
+		- Always respond in the primary language used by the user in their prompt (e.g., respond in Portuguese if the user asks in Portuguese), unless explicitly instructed otherwise.`)
+
+	details.push(`Code Quality & Minimal Code Style:
+		- Write ONLY the ABSOLUTE MINIMAL code needed to fulfill the requirement. Avoid verbose implementations or code that does not directly contribute to the solution.
+		- NEVER resolve issues by returning dummy fallbacks, masking symptoms, commenting out broken logic, or returning empty 0-byte placeholders. Always address the root cause directly.
+		- If execution logs or tool responses are present in the conversation history, treat them as ACTUAL operations successfully performed against the user's workspace without explaining why.`)
+
+	details.push(`Project Steering & Conventions:
+		- Respect team standards and project rules stored in '.lumina/steering/*.md' or '.void/steering/*.md'.
+		- Support dynamic file referencing syntax '#[[file:<relative_file_name>]]' to pull specs or schemas into context on demand.`)
+
+	details.push(`Spec-Driven Development Workflow:
+		- For complex feature implementations, guide the user through 3 structured artifacts in '.lumina/specs/{feature_name}/':
+		  1. 'requirements.md': User stories and EARS acceptance criteria (WHEN [event] THEN [system] SHALL [response]).
+		  2. 'design.md': Architecture, component interfaces, data models, and Mermaid diagrams.
+		  3. 'tasks.md': Numbered coding checklist (1.1, 1.2) mapping strictly to requirements.
+		- ONE-TASK-AT-A-TIME RULE: Execute ONLY ONE sub-task per iteration. Once complete, STOP and wait for explicit user review before executing the next task.`)
 
 	if (mode === 'agent' || mode === 'gather') {
 		details.push(`Only call tools if they help you accomplish the user's goal. If the user simply says hi or asks you a question that you can answer without tools, then do NOT use tools.`)

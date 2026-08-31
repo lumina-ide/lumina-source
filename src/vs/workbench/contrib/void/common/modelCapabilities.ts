@@ -22,6 +22,9 @@ export const defaultProviderSettings = {
 	moonshot: {
 		apiKey: '',
 	},
+	nvidia: {
+		apiKey: '',
+	},
 	ollama: {
 		endpoint: 'http://127.0.0.1:11434',
 	},
@@ -137,6 +140,14 @@ export const defaultModelsOfProvider = {
 		'moonshot-v1-128k',
 		'moonshot-v1-32k',
 		'moonshot-v1-8k',
+	],
+	nvidia: [ // NVIDIA NIM / AI Foundation Models
+		'meta/llama-3.3-70b-instruct',
+		'nvidia/llama-3.1-nemotron-70b-instruct',
+		'deepseek-ai/deepseek-r1',
+		'qwen/qwen2.5-coder-32b-instruct',
+		'mistralai/mistral-large-2-instruct',
+		'microsoft/phi-4',
 	],
 	ollama: [],
 	vLLM: [],
@@ -440,6 +451,7 @@ const extensiveModelOptionsFallback: VoidStaticProviderInfo['modelOptionsFallbac
 		return {
 			recognizedModelName,
 			modelName,
+			specialToolFormat: opts.specialToolFormat ?? 'openai-style',
 			...opts,
 			supportsSystemMessage: supportsSystemMessage,
 			cost: { input: 0, output: 0 },
@@ -1495,6 +1507,7 @@ const modelSettingsOfProvider: { [providerName in ProviderName]: VoidStaticProvi
 	// open source models
 	deepseek: deepseekSettings,
 	moonshot: openaiCompatible,
+	nvidia: openaiCompatible,
 	groq: groqSettings,
 
 	// open source models + providers (mixture of everything)

@@ -19,6 +19,7 @@ import { Event, Emitter } from '../../../../base/common/event.js';
 import { InternalToolInfo } from './prompt/prompts.js';
 import { IVoidSettingsService } from './voidSettingsService.js';
 import { MCPUserStateOfName } from './voidSettingsTypes.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 
 
 type MCPServiceState = {
@@ -82,6 +83,7 @@ class MCPService extends Disposable implements IMCPService {
 		@IEditorService private readonly editorService: IEditorService,
 		@IMainProcessService private readonly mainProcessService: IMainProcessService,
 		@IVoidSettingsService private readonly voidSettingsService: IVoidSettingsService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 		this.channel = this.mainProcessService.getChannel('void-channel-mcp')
@@ -242,19 +244,44 @@ class MCPService extends Disposable implements IMCPService {
 
 	private async _parseMCPConfigFile(): Promise<MCPConfigFileJSON | null> {
 		const mcpConfigUri = await this._getMCPConfigFilePath();
+		let globalServers: Record<string, MCPServer> = {};
 		try {
 			const fileContent = await this.fileService.readFile(mcpConfigUri);
 			const contentString = fileContent.value.toString();
 			const configFileJson = JSON.parse(contentString);
-			if (!configFileJson.mcpServers) {
-				throw new Error('Missing mcpServers property');
+			if (configFileJson?.mcpServers && typeof configFileJson.mcpServers === 'object') {
+				globalServers = configFileJson.mcpServers;
 			}
-			return configFileJson as MCPConfigFileJSON;
 		} catch (error) {
-			const fullError = `Error parsing MCP config file: ${error}`;
-			this._setHasError(fullError)
-			return null;
+			// Global MCP config optional
 		}
+
+		let mergedServers = { ...globalServers };
+		try {
+			const workspaceFolders = this.workspaceContextService.getWorkspace()?.folders || [];
+			for (const folder of workspaceFolders) {
+				const candidateUris = [
+					URI.joinPath(folder.uri, '.lumina', 'mcp.json'),
+					URI.joinPath(folder.uri, '.void', 'mcp.json'),
+					URI.joinPath(folder.uri, '.kiro', 'settings', 'mcp.json'),
+				];
+				for (const candUri of candidateUris) {
+					try {
+						const candContent = await this.fileService.readFile(candUri);
+						const candJson = JSON.parse(candContent.value.toString());
+						if (candJson?.mcpServers && typeof candJson.mcpServers === 'object') {
+							mergedServers = { ...mergedServers, ...candJson.mcpServers };
+						}
+					} catch (e) {
+						// candidate path does not exist
+					}
+				}
+			}
+		} catch (e) {
+			// workspace scan error
+		}
+
+		return { mcpServers: mergedServers } as MCPConfigFileJSON;
 	}
 
 
