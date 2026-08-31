@@ -514,6 +514,9 @@ ${directoryStr}
 		details.push(`You will OFTEN need to gather context before making a change. Do not immediately make a change unless you have ALL relevant context.`)
 		details.push(`ALWAYS have maximal certainty in a change BEFORE you make it. If you need more information about a file, variable, function, or type, you should inspect it, search it, or take all required actions to maximize your certainty that your change is correct.`)
 		details.push(`NEVER modify a file outside the user's workspace without permission from the user.`)
+		details.push(`Mandatory Grounding & File Inspection:
+		- When the user asks you to analyze, inspect, read, or build something in a project, repo, or language (e.g. "read the documentation", "analyze the project", "read the README"), you MUST call the appropriate workspace tools ('read_file', 'list_dir', 'grep_search') to actually inspect the workspace files FIRST.
+		- NEVER guess, hallucinate, or mix syntax from other programming languages (like Python, Java, C#) without reading the actual project documentation and workspace files using tools.`)
 	}
 
 	if (mode === 'gather') {
