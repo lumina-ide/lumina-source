@@ -141,7 +141,7 @@ export const defaultModelsOfProvider = {
 		'moonshot-v1-32k',
 		'moonshot-v1-8k',
 	],
-	nvidia: [ // NVIDIA NIM (Curated Free Endpoints - LLMs & Coding/Reasoning)
+	nvidia: [ // NVIDIA NIM (Curated Free Endpoints - LLMs & Coding/Reasoning/Vision)
 		'meta/llama-3.2-90b-vision-instruct',
 		'meta/llama-3.2-11b-vision-instruct',
 		'deepseek-ai/deepseek-v4-pro-0813',
@@ -149,6 +149,7 @@ export const defaultModelsOfProvider = {
 		'moonshotai/kimi-k3',
 		'google/gemma-4-31b-it',
 		'google/diffusiongemma-26b-a4b-it',
+		'google/paligemma',
 		'poolside/laguna-xs-2.1',
 		'openai/gpt-oss-120b',
 		'openai/gpt-oss-20b',
