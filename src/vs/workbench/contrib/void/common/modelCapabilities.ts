@@ -141,13 +141,12 @@ export const defaultModelsOfProvider = {
 		'moonshot-v1-32k',
 		'moonshot-v1-8k',
 	],
-	nvidia: [ // NVIDIA NIM / AI Foundation Models
-		'meta/llama-3.3-70b-instruct',
-		'nvidia/llama-3.1-nemotron-70b-instruct',
+	nvidia: [ // NVIDIA NIM (Free Cloud Endpoints Only)
+		'meta/llama-3.2-90b-vision-instruct',
+		'meta/llama-3.2-11b-vision-instruct',
 		'deepseek-ai/deepseek-r1',
 		'qwen/qwen2.5-coder-32b-instruct',
 		'mistralai/mistral-large-2-instruct',
-		'microsoft/phi-4',
 	],
 	ollama: [],
 	vLLM: [],

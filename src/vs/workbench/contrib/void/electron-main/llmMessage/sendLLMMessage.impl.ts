@@ -156,7 +156,14 @@ const newOpenAICompatibleSDK = async ({ settingsOfProvider, providerName, includ
 	}
 	else if (providerName === 'nvidia') {
 		const thisConfig = settingsOfProvider[providerName]
-		return new OpenAI({ baseURL: 'https://integrate.api.nvidia.com/v1', apiKey: thisConfig.apiKey, ...commonPayloadOpts })
+		return new OpenAI({
+			baseURL: 'https://integrate.api.nvidia.com/v1',
+			apiKey: thisConfig.apiKey,
+			defaultHeaders: {
+				'Accept': 'application/json, text/event-stream',
+			},
+			...commonPayloadOpts
+		})
 	}
 	else if (providerName === 'openAICompatible') {
 		const thisConfig = settingsOfProvider[providerName]
@@ -964,7 +971,7 @@ export const sendLLMMessageToProviderImplementation = {
 	nvidia: {
 		sendChat: (params) => _sendOpenAICompatibleChat(params),
 		sendFIM: null,
-		list: null,
+		list: (params) => _openaiCompatibleList(params),
 	},
 	groq: {
 		sendChat: (params) => _sendOpenAICompatibleChat(params),
