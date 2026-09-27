@@ -268,6 +268,9 @@ export const displayInfoOfSettingName = (providerName: ProviderName, settingName
 	else if (settingName === 'systemPrompt') {
 		return { title: 'Custom System Prompt', placeholder: 'Optional system instructions...' }
 	}
+	else if (settingName === 'repeatPenalty') {
+		return { title: 'Repetition Penalty', placeholder: '1.1' }
+	}
 
 	throw new Error(`displayInfo: Unknown setting name: "${settingName}"`)
 }
@@ -288,6 +291,7 @@ const defaultCustomSettings: Record<CustomSettingName, undefined> = {
 	temperature: undefined,
 	maxTokens: undefined,
 	systemPrompt: undefined,
+	repeatPenalty: undefined,
 }
 
 

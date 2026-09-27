@@ -333,6 +333,27 @@ const _sendOpenAICompatibleChat = async ({ messages, onText, onFinalMessage, onE
 		// max_completion_tokens: maxTokens,
 	}
 
+	// repetition penalty for local providers (ollama, vLLM, lmStudio, llamaServer) and model overrides
+	const thisLocalConfig = (settingsOfProvider as any)[providerName];
+	const configuredRepeatPenalty = overridesOfModel?.repeatPenalty ?? thisLocalConfig?.repeatPenalty;
+	if (configuredRepeatPenalty !== undefined && configuredRepeatPenalty !== '') {
+		const penalty = typeof configuredRepeatPenalty === 'number' ? configuredRepeatPenalty : parseFloat(configuredRepeatPenalty);
+		if (!isNaN(penalty) && penalty > 0) {
+			(options as any).repeat_penalty = penalty;
+			(options as any).repetition_penalty = penalty;
+			if (penalty > 1.0) {
+				const freqPenalty = Math.min(2.0, Number(((penalty - 1.0) * 2.0).toFixed(2)));
+				options.frequency_penalty = options.frequency_penalty ?? freqPenalty;
+			}
+			if (providerName === 'ollama') {
+				(options as any).options = {
+					...((options as any).options || {}),
+					repeat_penalty: penalty,
+				};
+			}
+		}
+	}
+
 	if (providerName === 'llamaServer') {
 		const thisConfig = settingsOfProvider[providerName];
 		
@@ -341,6 +362,11 @@ const _sendOpenAICompatibleChat = async ({ messages, onText, onFinalMessage, onE
 
 		const maxTok = parseInt(thisConfig.maxTokens);
 		options.max_tokens = !isNaN(maxTok) ? maxTok : 2048;
+
+		const repPen = parseFloat((thisConfig as any).repeatPenalty || '1.1');
+		if (!isNaN(repPen)) {
+			(options as any).repeat_penalty = repPen;
+		}
 
 		options.stop = [
 			'<|im_end|>',
@@ -678,7 +704,7 @@ const sendMistralFIM = ({ messages, onFinalMessage, onError, settingsOfProvider,
 // ------------ OLLAMA ------------
 const newOllamaSDK = ({ endpoint }: { endpoint: string }) => {
 	// if endpoint is empty, normally ollama will send to 11434, but we want it to fail - the user should type it in
-	if (!endpoint) throw new Error(`Ollama Endpoint was empty (please enter ${defaultProviderSettings.ollama.endpoint} in Void if you want the default url).`)
+	if (!endpoint) throw new Error(`Ollama Endpoint was empty (please enter ${defaultProviderSettings.ollama.endpoint} in Lumina if you want the default url).`)
 	const ollama = new Ollama({ host: endpoint })
 	return ollama
 }

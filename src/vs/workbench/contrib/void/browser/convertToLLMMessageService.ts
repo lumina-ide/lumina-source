@@ -271,7 +271,7 @@ const prepareOpenAIOrAnthropicMessages = ({
 	// A COMPLETE HACK: last message is system message for context purposes
 
 	const sysMsgParts: string[] = []
-	if (aiInstructions) sysMsgParts.push(`GUIDELINES (from the user's .voidrules file):\n${aiInstructions}`)
+	if (aiInstructions) sysMsgParts.push(`GUIDELINES (from the user's .luminarules/.voidrules file):\n${aiInstructions}`)
 	if (systemMessage) sysMsgParts.push(systemMessage)
 	const combinedSystemMessage = sysMsgParts.join('\n\n')
 
@@ -545,16 +545,23 @@ class ConvertToLLMMessageService extends Disposable implements IConvertToLLMMess
 		super()
 	}
 
-	// Read .voidrules files from workspace folders
+	// Read .luminarules (or .voidrules) files from workspace folders
 	private _getVoidRulesFileContents(): string {
 		try {
 			const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
 			let voidRules = '';
 			for (const folder of workspaceFolders) {
-				const uri = URI.joinPath(folder.uri, '.voidrules')
-				const { model } = this.voidModelService.getModel(uri)
-				if (!model) continue
-				voidRules += model.getValue(EndOfLinePreference.LF) + '\n\n';
+				const luminaUri = URI.joinPath(folder.uri, '.luminarules')
+				const { model: luminaModel } = this.voidModelService.getModel(luminaUri)
+				if (luminaModel) {
+					voidRules += luminaModel.getValue(EndOfLinePreference.LF) + '\n\n';
+					continue;
+				}
+				const voidUri = URI.joinPath(folder.uri, '.voidrules')
+				const { model: voidModel } = this.voidModelService.getModel(voidUri)
+				if (voidModel) {
+					voidRules += voidModel.getValue(EndOfLinePreference.LF) + '\n\n';
+				}
 			}
 			return voidRules.trim();
 		}

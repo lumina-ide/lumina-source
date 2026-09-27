@@ -27,9 +27,11 @@ export const defaultProviderSettings = {
 	},
 	ollama: {
 		endpoint: 'http://127.0.0.1:11434',
+		repeatPenalty: '1.1',
 	},
 	vLLM: {
 		endpoint: 'http://localhost:8000',
+		repeatPenalty: '1.1',
 	},
 	openRouter: {
 		apiKey: '',
@@ -53,6 +55,7 @@ export const defaultProviderSettings = {
 	},
 	lmStudio: {
 		endpoint: 'http://localhost:1234',
+		repeatPenalty: '1.1',
 	},
 	liteLLM: { // https://docs.litellm.ai/docs/providers/openai_compatible
 		endpoint: '',
@@ -80,6 +83,7 @@ export const defaultProviderSettings = {
 		endpoint: 'http://127.0.0.1:8080',
 		temperature: '0.1',
 		maxTokens: '2048',
+		repeatPenalty: '1.1',
 		systemPrompt: '',
 	},
 
@@ -219,6 +223,7 @@ export type VoidStaticModelInfo = { // not stateful
 	supportsFIM: boolean; // whether the model was specifically designed for autocomplete or "FIM" ("fill-in-middle" format)
 
 	additionalOpenAIPayload?: { [key: string]: string } // additional payload in the message body for requests that are openai-compatible (ollama, vllm, openai, openrouter, etc)
+	repeatPenalty?: number | string; // repetition penalty for local models / open source LLMs
 
 	// reasoning options
 	reasoningCapabilities: false | {
@@ -260,7 +265,8 @@ export const modelOverrideKeys = [
 	'specialToolFormat',
 	'supportsFIM',
 	'reasoningCapabilities',
-	'additionalOpenAIPayload'
+	'additionalOpenAIPayload',
+	'repeatPenalty'
 ] as const
 
 export type ModelOverrides = Pick<

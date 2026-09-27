@@ -152,7 +152,7 @@ const _validatedModelState = (state: Omit<VoidSettingsState, '_modelOptions'>): 
 		const settingsAtProvider = newSettingsOfProvider[providerName]
 
 		const didFillInProviderSettings = Object.keys(defaultProviderSettings[providerName]).every(key => {
-			if (key === 'systemPrompt') return true;
+			if (key === 'systemPrompt' || key === 'repeatPenalty') return true;
 			return !!settingsAtProvider[key as keyof typeof settingsAtProvider];
 		})
 

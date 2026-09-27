@@ -156,6 +156,10 @@ export class LlamaServerService extends Disposable {
 				'--host', '127.0.0.1'
 			];
 
+			if (options.repeatPenalty !== undefined && !isNaN(options.repeatPenalty)) {
+				args.push('--repeat-penalty', options.repeatPenalty.toString());
+			}
+
 			this.logService.info(`[LlamaServerService] Spawning server on port ${actualPort}: "${binaryPath}" in cwd: "${workingDir}" with args:`, args);
 
 			this._process = cp.spawn(binaryPath, args, {

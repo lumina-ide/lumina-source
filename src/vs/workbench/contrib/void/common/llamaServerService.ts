@@ -18,6 +18,7 @@ export interface LlamaServerOptions {
 	contextSize: number;
 	gpuLayers: number;
 	threads: number;
+	repeatPenalty?: number;
 }
 
 export interface ILlamaServerService {
