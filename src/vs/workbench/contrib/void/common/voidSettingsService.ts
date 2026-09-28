@@ -123,12 +123,12 @@ export const modelFilterOfFeatureName: {
 const _stateWithMergedDefaultModels = (state: VoidSettingsState): VoidSettingsState => {
 	let newSettingsOfProvider = state.settingsOfProvider
 
-	// recompute default models
+	// Only populate initial default models if provider has no models configured at all
+	// (Prevents deleted default models from resurrecting on every reload)
 	for (const providerName of providerNames) {
 		const defaultModels = defaultSettingsOfProvider[providerName]?.models ?? []
 		const currentModels = newSettingsOfProvider[providerName]?.models ?? []
-		const defaultModelNames = defaultModels.map(m => m.modelName)
-		const newModels = _modelsWithSwappedInNewModels({ existingModels: currentModels, models: defaultModelNames, type: 'default' })
+		const newModels = currentModels.length === 0 ? defaultModels : currentModels
 		newSettingsOfProvider = {
 			...newSettingsOfProvider,
 			[providerName]: {

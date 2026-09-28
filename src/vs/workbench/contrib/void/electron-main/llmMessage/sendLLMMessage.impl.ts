@@ -245,7 +245,7 @@ const toOpenAICompatibleTool = (toolInfo: InternalToolInfo) => {
 			description: description,
 			parameters: {
 				type: 'object',
-				properties: params,
+				properties: paramsWithType,
 				// required: Object.keys(params), // in strict mode, all params are required and additionalProperties is false
 				// additionalProperties: false,
 			},
@@ -491,9 +491,16 @@ const _openaiCompatibleList = async ({ onSuccess: onSuccess_, onError: onError_,
 		openai.models.list()
 			.then(async (response) => {
 				const models: OpenAIModel[] = []
-				models.push(...response.data)
-				while (response.hasNextPage()) {
-					models.push(...(await response.getNextPage()).data)
+				if (Array.isArray(response?.data)) {
+					models.push(...response.data)
+				}
+				if (typeof (response as any)?.hasNextPage === 'function') {
+					while ((response as any).hasNextPage()) {
+						const next = await (response as any).getNextPage()
+						if (Array.isArray(next?.data)) {
+							models.push(...next.data)
+						}
+					}
 				}
 				onSuccess({ models })
 			})

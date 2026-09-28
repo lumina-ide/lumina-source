@@ -22,7 +22,7 @@ import { ChatMode, displayInfoOfProviderName, FeatureName, isFeatureNameDisabled
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { WarningBox } from '../void-settings-tsx/WarningBox.js';
 import { getModelCapabilities, getIsReasoningEnabledState } from '../../../../common/modelCapabilities.js';
-import { AlertTriangle, File, Ban, Check, ChevronRight, Dot, FileIcon, Pencil, Undo, Undo2, X, Flag, Copy as CopyIcon, Info, CirclePlus, Ellipsis, CircleEllipsis, Folder, ALargeSmall, TypeOutline, Text } from 'lucide-react';
+import { AlertTriangle, File, Ban, Check, ChevronRight, Dot, FileIcon, Pencil, Undo, Undo2, X, Flag, Copy as CopyIcon, Info, CirclePlus, Ellipsis, CircleEllipsis, Folder, ALargeSmall, TypeOutline, Text, Clock } from 'lucide-react';
 import { ChatMessage, CheckpointEntry, StagingSelectionItem, ToolMessage } from '../../../../common/chatThreadServiceTypes.js';
 import { approvalTypeOfBuiltinToolName, BuiltinToolCallParams, BuiltinToolName, ToolName, LintErrorItem, ToolApprovalType, toolApprovalTypes } from '../../../../common/toolsServiceTypes.js';
 import { CopyButton, EditToolAcceptRejectButtonsHTML, IconShell1, JumpToFileButton, JumpToTerminalButton, StatusIndicator, StatusIndicatorForApplyButton, useApplyStreamState, useEditToolStreamState } from '../markdown/ApplyBlockHoverButtons.js';
@@ -2917,36 +2917,108 @@ export const SidebarChat = () => {
 
 	const sidebarRef = useRef<HTMLDivElement>(null)
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null)
+
+	// Queue of pending messages per thread
+	const [threadQueues, setThreadQueues] = useState<Record<string, string[]>>({});
+	const threadId = currentThread.id;
+	const queuedMessages = useMemo(() => threadQueues[threadId] || [], [threadQueues, threadId]);
+
+	const pushToQueue = useCallback((tid: string, msg: string) => {
+		setThreadQueues(prev => ({
+			...prev,
+			[tid]: [...(prev[tid] || []), msg]
+		}));
+	}, []);
+
+	const removeFromQueue = useCallback((tid: string, index: number) => {
+		setThreadQueues(prev => {
+			const list = prev[tid] || [];
+			const removed = list[index];
+			const nextList = list.filter((_, i) => i !== index);
+			if (removed && !textAreaRef.current?.value) {
+				textAreaFnsRef.current?.setValue(removed);
+			}
+			return {
+				...prev,
+				[tid]: nextList
+			};
+		});
+	}, [textAreaRef, textAreaFnsRef]);
+
 	const onSubmit = useCallback(async (_forceSubmit?: string) => {
+		const currentThreadId = chatThreadsService.state.currentThreadId;
 
-		if (isDisabled && !_forceSubmit) return
-		if (isRunning) return
+		const userMessage = (_forceSubmit || textAreaRef.current?.value || '').trim();
+		if (!userMessage && !_forceSubmit) return;
+		if (isDisabled && !_forceSubmit) return;
 
-		const threadId = chatThreadsService.state.currentThreadId
-
-		// send message to LLM
-		const userMessage = _forceSubmit || textAreaRef.current?.value || ''
-
-		try {
-			await chatThreadsService.addUserMessageAndStreamResponse({ userMessage, threadId })
-		} catch (e) {
-			console.error('Error while sending message in chat:', e)
+		// If task/LLM is actively running, queue this message for later!
+		if (isRunning) {
+			pushToQueue(currentThreadId, userMessage);
+			setSelections([]);
+			textAreaFnsRef.current?.setValue('');
+			return;
 		}
 
-		setSelections([]) // clear staging
-		textAreaFnsRef.current?.setValue('')
-		textAreaRef.current?.focus() // focus input after submit
+		// Otherwise send message to LLM directly
+		try {
+			await chatThreadsService.addUserMessageAndStreamResponse({ userMessage, threadId: currentThreadId });
+		} catch (e) {
+			console.error('Error while sending message in chat:', e);
+		}
 
-	}, [chatThreadsService, isDisabled, isRunning, textAreaRef, textAreaFnsRef, setSelections, settingsState])
+		setSelections([]);
+		textAreaFnsRef.current?.setValue('');
+		textAreaRef.current?.focus();
+	}, [chatThreadsService, isDisabled, isRunning, textAreaRef, textAreaFnsRef, setSelections, pushToQueue]);
 
 	const onAbort = async () => {
-		const threadId = currentThread.id
-		await chatThreadsService.abortRunning(threadId)
-	}
+		const tid = currentThread.id;
+		await chatThreadsService.abortRunning(tid);
+	};
+
+	const handleSendQueuedNow = useCallback(async (index: number) => {
+		const msg = queuedMessages[index];
+		if (!msg) return;
+
+		// Remove from queue
+		setThreadQueues(prev => ({
+			...prev,
+			[threadId]: (prev[threadId] || []).filter((_, i) => i !== index)
+		}));
+
+		// Abort running task first
+		await onAbort();
+
+		// Short delay to let abort state settle, then send
+		setTimeout(() => {
+			onSubmit(msg);
+		}, 120);
+	}, [queuedMessages, threadId, onAbort, onSubmit]);
+
+	// Auto-dequeue next message when the thread finishes execution and becomes idle
+	useEffect(() => {
+		if (!isRunning && queuedMessages.length > 0) {
+			const [nextMsg, ...remaining] = queuedMessages;
+			setThreadQueues(prev => ({
+				...prev,
+				[threadId]: remaining
+			}));
+			// Fire the queued message
+			onSubmit(nextMsg);
+		}
+	}, [isRunning, queuedMessages, threadId, onSubmit]);
+
+	// Auto-focus textarea on mount/thread change to avoid Windows unhandled key error beep
+	useEffect(() => {
+		const tid = setTimeout(() => {
+			textAreaRef.current?.focus();
+		}, 80);
+		return () => clearTimeout(tid);
+	}, [threadId]);
 
 	const keybindingString = accessor.get('IKeybindingService').lookupKeybinding(VOID_CTRL_L_ACTION_ID)?.getLabel()
 
-	const threadId = currentThread.id
 	const currCheckpointIdx = chatThreadsState.allThreads[threadId]?.state?.currCheckpointIdx ?? undefined  // if not exist, treat like checkpoint is last message (infinity)
 
 
@@ -3063,31 +3135,77 @@ export const SidebarChat = () => {
 		}
 	}, [onSubmit, onAbort, isRunning])
 
-	const inputChatArea = <VoidChatArea
-		featureName='Chat'
-		onSubmit={() => onSubmit()}
-		onAbort={onAbort}
-		isStreaming={!!isRunning}
-		isDisabled={isDisabled}
-		showSelections={true}
-		// showProspectiveSelections={previousMessagesHTML.length === 0}
-		selections={selections}
-		setSelections={setSelections}
-		onClickAnywhere={() => { textAreaRef.current?.focus() }}
-	>
-		<VoidInputBox2
-			enableAtToMention
-			className={`min-h-[81px] px-0.5 py-0.5`}
-			placeholder={`@ to mention, ${keybindingString ? `${keybindingString} to add a selection. ` : ''}Enter instructions...`}
-			onChangeText={onChangeText}
-			onKeyDown={onKeyDown}
-			onFocus={() => { chatThreadsService.setCurrentlyFocusedMessageIdx(undefined) }}
-			ref={textAreaRef}
-			fnsRef={textAreaFnsRef}
-			multiline={true}
-		/>
+	const messageQueueHTML = queuedMessages.length > 0 ? (
+		<div className="mb-2 px-1 flex flex-col gap-1.5">
+			<div className="text-[11px] font-semibold text-void-fg-3 flex items-center gap-1.5 px-1">
+				<Clock size={12} className="text-amber-400 animate-spin" />
+				<span>Fila de Espera ({queuedMessages.length})</span>
+				<span className="text-[10px] text-void-fg-4 opacity-80">(enviará automaticamente ao término da tarefa)</span>
+			</div>
+			{queuedMessages.map((msg, idx) => (
+				<div
+					key={idx}
+					className="p-2 rounded bg-void-bg-2 border border-amber-500/30 text-xs flex items-center justify-between gap-2 shadow-sm"
+				>
+					<div className="flex items-center gap-2 overflow-hidden flex-grow min-w-0">
+						<span className="text-amber-400 font-mono text-[10px] bg-amber-500/10 px-1.5 py-0.5 rounded flex-shrink-0">
+							#{idx + 1}
+						</span>
+						<span className="text-void-fg-1 truncate font-mono text-[11px]" title={msg}>
+							{msg}
+						</span>
+					</div>
+					<div className="flex items-center gap-1.5 flex-shrink-0">
+						<button
+							type="button"
+							onClick={() => handleSendQueuedNow(idx)}
+							className="px-2 py-0.5 rounded text-[11px] bg-[#0e70c0] hover:bg-[#1177cb] text-white font-medium"
+							title="Interromper tarefa atual e enviar esta mensagem imediatamente"
+						>
+							Enviar agora
+						</button>
+						<button
+							type="button"
+							onClick={() => removeFromQueue(threadId, idx)}
+							className="p-0.5 rounded text-void-fg-4 hover:text-red-400 hover:bg-void-bg-1"
+							title="Remover da fila"
+						>
+							<X size={13} />
+						</button>
+					</div>
+				</div>
+			))}
+		</div>
+	) : null;
 
-	</VoidChatArea>
+	const inputChatArea = <>
+		{messageQueueHTML}
+		<VoidChatArea
+			featureName='Chat'
+			onSubmit={() => onSubmit()}
+			onAbort={onAbort}
+			isStreaming={!!isRunning}
+			isDisabled={isDisabled}
+			showSelections={true}
+			// showProspectiveSelections={previousMessagesHTML.length === 0}
+			selections={selections}
+			setSelections={setSelections}
+			onClickAnywhere={() => { textAreaRef.current?.focus() }}
+		>
+			<VoidInputBox2
+				enableAtToMention
+				className={`min-h-[81px] px-0.5 py-0.5`}
+				placeholder={isRunning ? `Tarefa em execução... Digite para colocar na fila de espera` : `@ to mention, ${keybindingString ? `${keybindingString} to add a selection. ` : ''}Enter instructions...`}
+				onChangeText={onChangeText}
+				onKeyDown={onKeyDown}
+				onFocus={() => { chatThreadsService.setCurrentlyFocusedMessageIdx(undefined) }}
+				ref={textAreaRef}
+				fnsRef={textAreaFnsRef}
+				multiline={true}
+			/>
+
+		</VoidChatArea>
+	</>
 
 
 	const isLandingPage = previousMessages.length === 0

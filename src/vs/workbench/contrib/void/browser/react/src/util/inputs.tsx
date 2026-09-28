@@ -704,10 +704,11 @@ export const VoidInputBox2 = forwardRef<HTMLTextAreaElement, InputBox2Props>(fun
 		r.style.height = 'auto' // set to auto to reset height, then set to new height
 
 		if (r.scrollHeight === 0) return requestAnimationFrame(adjustHeight)
-		const h = r.scrollHeight
+		const minH = multiline ? 81 : 24
+		const h = Math.max(r.scrollHeight, minH)
 		const newHeight = Math.min(h + 1, 500) // plus one to avoid scrollbar appearing when it shouldn't
 		r.style.height = `${newHeight}px`
-	}, []);
+	}, [multiline]);
 
 
 

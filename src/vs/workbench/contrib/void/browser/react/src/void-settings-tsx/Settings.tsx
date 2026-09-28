@@ -390,6 +390,29 @@ export const ModelDump = ({ filteredProviders }: { filteredProviders?: ProviderN
 	const [userChosenProviderName, setUserChosenProviderName] = useState<ProviderName | null>(null);
 	const [modelName, setModelName] = useState<string>('');
 	const [errorString, setErrorString] = useState('');
+	const [apiModels, setApiModels] = useState<string[]>([]);
+	const [isFetchingApi, setIsFetchingApi] = useState(false);
+
+	const refreshModelService = accessor.get('IRefreshModelService');
+
+	const fetchApiModelsForProvider = async (pn: ProviderName) => {
+		setIsFetchingApi(true);
+		setErrorString('');
+		try {
+			const models = await refreshModelService.fetchRemoteModels(pn);
+			setApiModels(models);
+			if (models.length > 0) {
+				setModelName(models[0]);
+			} else {
+				setErrorString('Nenhum modelo retornado pela API.');
+			}
+		} catch (err: any) {
+			setErrorString(err?.message || 'Falha ao buscar modelos da API.');
+			setApiModels([]);
+		} finally {
+			setIsFetchingApi(false);
+		}
+	};
 
 	// a dump of all the enabled providers' models
 	const modelDump: (VoidStatefulModelInfo & { providerName: ProviderName, providerEnabled: boolean })[] = []
@@ -432,6 +455,7 @@ export const ModelDump = ({ filteredProviders }: { filteredProviders?: ProviderN
 			setIsAddModelOpen(false);
 			setUserChosenProviderName(null);
 			setModelName('');
+			setApiModels([]);
 		}, 1500);
 		setErrorString('');
 	};
@@ -508,15 +532,15 @@ export const ModelDump = ({ filteredProviders }: { filteredProviders?: ProviderN
 
 					{/* X button */}
 					<div className={`w-5 flex items-center justify-center`}>
-						{type === 'default' || type === 'autodetected' ? null : <button
+						<button
 							onClick={() => { settingsStateService.deleteModel(providerName, modelName); }}
 							data-tooltip-id='void-tooltip'
 							data-tooltip-place='right'
 							data-tooltip-content='Delete'
 							className={`${hasOverrides ? '' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}
 						>
-							<X size={12} className="text-void-fg-3 opacity-50" />
-						</button>}
+							<X size={12} className="text-void-fg-3 opacity-50 hover:opacity-100 hover:text-red-400" />
+						</button>
 					</div>
 				</div>
 			</div>
@@ -529,32 +553,65 @@ export const ModelDump = ({ filteredProviders }: { filteredProviders?: ProviderN
 			</div>
 		) : isAddModelOpen ? (
 			<div className="mt-4">
-				<form className="flex items-center gap-2">
+				<form className="flex flex-wrap items-center gap-2">
 
 					{/* Provider dropdown */}
 					<ErrorBoundary>
 						<VoidCustomDropdownBox
 							options={providersToShow}
 							selectedOption={userChosenProviderName}
-							onChangeOption={(pn) => setUserChosenProviderName(pn)}
+							onChangeOption={(pn) => {
+								setUserChosenProviderName(pn);
+								setApiModels([]);
+								setModelName('');
+								setErrorString('');
+							}}
 							getOptionDisplayName={(pn) => pn ? displayInfoOfProviderName(pn).title : 'Provider Name'}
 							getOptionDropdownName={(pn) => pn ? displayInfoOfProviderName(pn).title : 'Provider Name'}
 							getOptionsEqual={(a, b) => a === b}
-							className="max-w-32 mx-2 w-full resize-none bg-void-bg-1 text-void-fg-1 placeholder:text-void-fg-3 border border-void-border-2 focus:border-void-border-1 py-1 px-2 rounded"
+							className="max-w-36 mx-1 w-full resize-none bg-void-bg-1 text-void-fg-1 placeholder:text-void-fg-3 border border-void-border-2 focus:border-void-border-1 py-1 px-2 rounded"
 							arrowTouchesText={false}
 						/>
 					</ErrorBoundary>
 
-					{/* Model name input */}
-					<ErrorBoundary>
-						<VoidSimpleInputBox
+					{/* API Fetch button */}
+					{userChosenProviderName && (
+						<button
+							type="button"
+							onClick={() => fetchApiModelsForProvider(userChosenProviderName)}
+							disabled={isFetchingApi}
+							className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-void-bg-1 border border-void-border-1 hover:brightness-110 text-void-fg-2 disabled:opacity-50"
+							title="Buscar modelos disponíveis na API deste provedor"
+						>
+							{isFetchingApi ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+							<span>Buscar da API</span>
+						</button>
+					)}
+
+					{/* Model Dropdown from API or Text Input */}
+					{apiModels.length > 0 ? (
+						<select
 							value={modelName}
-							compact={true}
-							onChangeValue={setModelName}
-							placeholder='Model Name'
-							className='max-w-32'
-						/>
-					</ErrorBoundary>
+							onChange={(e) => setModelName(e.target.value)}
+							className="max-w-48 px-2 py-1 text-xs rounded bg-void-bg-1 border border-void-border-1 text-void-fg-1 outline-none"
+						>
+							{apiModels.map((m) => (
+								<option key={m} value={m}>
+									{m}
+								</option>
+							))}
+						</select>
+					) : (
+						<ErrorBoundary>
+							<VoidSimpleInputBox
+								value={modelName}
+								compact={true}
+								onChangeValue={setModelName}
+								placeholder='Model Name'
+								className='max-w-36'
+							/>
+						</ErrorBoundary>
+					)}
 
 					{/* Add button */}
 					<ErrorBoundary>
@@ -573,6 +630,7 @@ export const ModelDump = ({ filteredProviders }: { filteredProviders?: ProviderN
 							setErrorString('');
 							setModelName('');
 							setUserChosenProviderName(null);
+							setApiModels([]);
 						}}
 						className='text-void-fg-4'
 					>
@@ -822,6 +880,147 @@ export const LlamaServerControls = () => {
 };
 
 
+export const APIModelSelector = ({ providerName }: { providerName: ProviderName }) => {
+	const accessor = useAccessor()
+	const refreshModelService = accessor.get('IRefreshModelService')
+	const settingsStateService = accessor.get('IVoidSettingsService')
+	const settingsState = useSettingsState()
+
+	const providerSettings = settingsState.settingsOfProvider[providerName]
+	const isFilled = providerSettings?._didFillInProviderSettings
+
+	const [availableModels, setAvailableModels] = useState<string[]>([])
+	const [isLoading, setIsLoading] = useState(false)
+	const [fetchError, setFetchError] = useState<string | null>(null)
+	const [selectedModel, setSelectedModel] = useState<string>('')
+	const [filterText, setFilterText] = useState('')
+	const [justAdded, setJustAdded] = useState(false)
+
+	const currentModels = providerSettings?.models ?? []
+	const currentModelNames = useMemo(() => new Set(currentModels.map(m => m.modelName)), [currentModels])
+
+	const handleFetch = async () => {
+		setIsLoading(true)
+		setFetchError(null)
+		try {
+			const models = await refreshModelService.fetchRemoteModels(providerName)
+			setAvailableModels(models)
+			if (models.length > 0) {
+				setSelectedModel(models[0])
+			}
+		} catch (err: any) {
+			setFetchError(err?.message || 'Falha ao buscar modelos da API.')
+		} finally {
+			setIsLoading(false)
+		}
+	}
+
+	const filteredModels = useMemo(() => {
+		if (!filterText) return availableModels
+		const lower = filterText.toLowerCase()
+		return availableModels.filter(m => m.toLowerCase().includes(lower))
+	}, [availableModels, filterText])
+
+	const handleAddSelected = () => {
+		if (!selectedModel) return
+		if (currentModelNames.has(selectedModel)) {
+			const existing = currentModels.find(m => m.modelName === selectedModel)
+			if (existing?.isHidden) {
+				settingsStateService.toggleModelHidden(providerName, selectedModel)
+			}
+		} else {
+			settingsStateService.addModel(providerName, selectedModel)
+		}
+		setJustAdded(true)
+		setTimeout(() => setJustAdded(false), 2000)
+	}
+
+	if (providerName === 'googleVertex' || providerName === 'microsoftAzure') {
+		return null
+	}
+
+	return (
+		<div className="my-3 p-3 rounded bg-void-bg-2 border border-void-border-2 text-xs">
+			<div className="flex items-center justify-between gap-2 mb-2">
+				<span className="font-semibold text-void-fg-1">Modelos disponíveis via API</span>
+				<button
+					type="button"
+					onClick={handleFetch}
+					disabled={isLoading || !isFilled}
+					className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-void-bg-1 border border-void-border-1 hover:brightness-110 text-void-fg-1 disabled:opacity-50"
+				>
+					{isLoading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+					<span>{isLoading ? 'Buscando...' : 'Atualizar da API'}</span>
+				</button>
+			</div>
+
+			{!isFilled && (
+				<div className="text-void-fg-3 text-[11px] mb-1">
+					Preencha as configurações acima para carregar a lista de modelos da API.
+				</div>
+			)}
+
+			{fetchError && (
+				<div className="text-red-400 text-[11px] mb-2">
+					{fetchError}
+				</div>
+			)}
+
+			{availableModels.length > 0 && (
+				<div className="flex flex-col gap-2 mt-2">
+					<div className="flex items-center gap-2">
+						{availableModels.length > 10 && (
+							<input
+								type="text"
+								placeholder="Filtrar modelos..."
+								value={filterText}
+								onChange={(e) => setFilterText(e.target.value)}
+								className="px-2 py-1 text-xs rounded bg-void-bg-1 border border-void-border-1 text-void-fg-1 w-36"
+							/>
+						)}
+						<select
+							value={selectedModel}
+							onChange={(e) => setSelectedModel(e.target.value)}
+							className="flex-grow px-2 py-1 text-xs rounded bg-void-bg-1 border border-void-border-1 text-void-fg-1 outline-none"
+						>
+							{filteredModels.map((m) => {
+								const isAdded = currentModelNames.has(m)
+								return (
+									<option key={m} value={m}>
+										{m} {isAdded ? '✓ (adicionado)' : ''}
+									</option>
+								)
+							})}
+						</select>
+						<button
+							type="button"
+							onClick={handleAddSelected}
+							disabled={!selectedModel || justAdded}
+							className="px-3 py-1 rounded bg-[#0e70c0] hover:bg-[#1177cb] text-white font-medium flex items-center gap-1 disabled:opacity-60"
+						>
+							{justAdded ? (
+								<>
+									<Check size={13} />
+									<span>Adicionado!</span>
+								</>
+							) : (
+								<>
+									<Plus size={13} />
+									<span>Adicionar</span>
+								</>
+							)}
+						</button>
+					</div>
+					<div className="text-void-fg-3 text-[11px]">
+						{availableModels.length} modelo(s) retornado(s) pelo endpoint.
+					</div>
+				</div>
+			)}
+		</div>
+	)
+}
+
+
 export const SettingsForProvider = ({ providerName, showProviderTitle, showProviderSuggestions }: { providerName: ProviderName, showProviderTitle: boolean, showProviderSuggestions: boolean }) => {
 	const voidSettingsState = useSettingsState()
 
@@ -866,6 +1065,9 @@ export const SettingsForProvider = ({ providerName, showProviderTitle, showProvi
 			})}
 
 			{providerName === 'llamaServer' && <LlamaServerControls />}
+
+			{/* API Model Selector */}
+			<APIModelSelector providerName={providerName} />
 
 			{showProviderSuggestions && needsModel ?
 				providerName === 'ollama' ?
