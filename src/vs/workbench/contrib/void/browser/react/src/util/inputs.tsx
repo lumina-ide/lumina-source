@@ -758,7 +758,8 @@ export const VoidInputBox2 = forwardRef<HTMLTextAreaElement, InputBox2Props>(fun
 			style={{
 				// defaultInputBoxStyles
 				background: asCssVariable(inputBackground),
-				color: asCssVariable(inputForeground)
+				color: asCssVariable(inputForeground),
+				minHeight: multiline ? '81px' : undefined,
 				// inputBorder: asCssVariable(inputBorder),
 			}}
 

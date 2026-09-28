@@ -235,7 +235,14 @@ const toOpenAICompatibleTool = (toolInfo: InternalToolInfo) => {
 	const { name, description, params } = toolInfo
 
 	const paramsWithType: { [s: string]: { description: string; type: 'string' } } = {}
-	for (const key in params) { paramsWithType[key] = { ...params[key], type: 'string' } }
+	const required: string[] = []
+	for (const key in params) {
+		paramsWithType[key] = { ...params[key], type: 'string' }
+		const desc = params[key]?.description || ''
+		if (!desc.startsWith('Optional.') && !desc.startsWith('Optional')) {
+			required.push(key)
+		}
+	}
 
 	return {
 		type: 'function',
@@ -246,8 +253,7 @@ const toOpenAICompatibleTool = (toolInfo: InternalToolInfo) => {
 			parameters: {
 				type: 'object',
 				properties: paramsWithType,
-				// required: Object.keys(params), // in strict mode, all params are required and additionalProperties is false
-				// additionalProperties: false,
+				...(required.length > 0 ? { required } : {}),
 			},
 		}
 	} satisfies OpenAI.Chat.Completions.ChatCompletionTool
@@ -520,14 +526,21 @@ const _openaiCompatibleList = async ({ onSuccess: onSuccess_, onError: onError_,
 const toAnthropicTool = (toolInfo: InternalToolInfo) => {
 	const { name, description, params } = toolInfo
 	const paramsWithType: { [s: string]: { description: string; type: 'string' } } = {}
-	for (const key in params) { paramsWithType[key] = { ...params[key], type: 'string' } }
+	const required: string[] = []
+	for (const key in params) {
+		paramsWithType[key] = { ...params[key], type: 'string' }
+		const desc = params[key]?.description || ''
+		if (!desc.startsWith('Optional.') && !desc.startsWith('Optional')) {
+			required.push(key)
+		}
+	}
 	return {
 		name: name,
 		description: description,
 		input_schema: {
 			type: 'object',
 			properties: paramsWithType,
-			// required: Object.keys(params),
+			...(required.length > 0 ? { required } : {}),
 		},
 	} satisfies Anthropic.Messages.Tool
 }
@@ -775,6 +788,13 @@ const sendOllamaFIM = ({ messages, onFinalMessage, onError, settingsOfProvider, 
 
 const toGeminiFunctionDecl = (toolInfo: InternalToolInfo) => {
 	const { name, description, params } = toolInfo
+	const required: string[] = []
+	for (const key in params) {
+		const desc = params[key]?.description || ''
+		if (!desc.startsWith('Optional.') && !desc.startsWith('Optional')) {
+			required.push(key)
+		}
+	}
 	return {
 		name,
 		description,
@@ -786,7 +806,8 @@ const toGeminiFunctionDecl = (toolInfo: InternalToolInfo) => {
 					description: value.description
 				};
 				return acc;
-			}, {} as Record<string, Schema>)
+			}, {} as Record<string, Schema>),
+			...(required.length > 0 ? { required } : {}),
 		}
 	} satisfies FunctionDeclaration
 }
