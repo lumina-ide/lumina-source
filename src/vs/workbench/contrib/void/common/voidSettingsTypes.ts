@@ -509,6 +509,7 @@ export type ChatMode = 'agent' | 'gather' | 'normal'
 
 export type GlobalSettings = {
 	autoRefreshModels: boolean;
+	enableWebSearch: boolean;
 	aiInstructions: string;
 	enableAutocomplete: boolean;
 	syncApplyToChat: boolean;
@@ -525,6 +526,7 @@ export type GlobalSettings = {
 
 export const defaultGlobalSettings: GlobalSettings = {
 	autoRefreshModels: true,
+	enableWebSearch: true,
 	aiInstructions: '',
 	enableAutocomplete: false,
 	syncApplyToChat: true,

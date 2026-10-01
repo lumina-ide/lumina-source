@@ -22,7 +22,7 @@ import { ChatMode, displayInfoOfProviderName, FeatureName, isFeatureNameDisabled
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { WarningBox } from '../void-settings-tsx/WarningBox.js';
 import { getModelCapabilities, getIsReasoningEnabledState } from '../../../../common/modelCapabilities.js';
-import { AlertTriangle, File, Ban, Check, ChevronRight, Dot, FileIcon, Pencil, Undo, Undo2, X, Flag, Copy as CopyIcon, Info, CirclePlus, Ellipsis, CircleEllipsis, Folder, ALargeSmall, TypeOutline, Text, Clock } from 'lucide-react';
+import { AlertTriangle, File, Ban, Check, ChevronRight, Dot, FileIcon, Pencil, Undo, Undo2, X, Flag, Copy as CopyIcon, Info, CirclePlus, Ellipsis, CircleEllipsis, Folder, ALargeSmall, TypeOutline, Text, Clock, Globe } from 'lucide-react';
 import { ChatMessage, CheckpointEntry, StagingSelectionItem, ToolMessage } from '../../../../common/chatThreadServiceTypes.js';
 import { approvalTypeOfBuiltinToolName, BuiltinToolCallParams, BuiltinToolName, ToolName, LintErrorItem, ToolApprovalType, toolApprovalTypes } from '../../../../common/toolsServiceTypes.js';
 import { CopyButton, EditToolAcceptRejectButtonsHTML, IconShell1, JumpToFileButton, JumpToTerminalButton, StatusIndicator, StatusIndicatorForApplyButton, useApplyStreamState, useEditToolStreamState } from '../markdown/ApplyBlockHoverButtons.js';
@@ -285,6 +285,33 @@ const ChatModeDropdown = ({ className }: { className: string }) => {
 
 }
 
+const WebSearchToggleButton = () => {
+	const accessor = useAccessor()
+	const voidSettingsService = accessor.get('IVoidSettingsService')
+	const settingsState = useSettingsState()
+	const isEnabled = settingsState.globalSettings.enableWebSearch ?? true
+
+	return (
+		<button
+			type='button'
+			onClick={() => {
+				voidSettingsService.setGlobalSetting('enableWebSearch', !isEnabled)
+			}}
+			className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs transition-all duration-150 border cursor-pointer select-none ${
+				isEnabled
+					? 'bg-sky-500/15 text-sky-400 border-sky-500/40 hover:bg-sky-500/25 shadow-sm'
+					: 'bg-void-bg-1 text-void-fg-4 border-void-border-2 hover:text-void-fg-2 opacity-60'
+			}`}
+			data-tooltip-id='void-tooltip'
+			data-tooltip-content={isEnabled ? 'Busca Web Ativada (DuckDuckGo)' : 'Busca Web Desativada'}
+			data-tooltip-place='top'
+		>
+			<Globe size={12} className={isEnabled ? 'stroke-sky-400' : 'stroke-void-fg-4'} />
+			<span className='text-[11px] font-medium'>Web</span>
+		</button>
+	)
+}
+
 
 
 
@@ -389,6 +416,7 @@ export const VoidChatArea: React.FC<VoidChatAreaProps> = ({
 						<div className='flex items-center flex-wrap gap-x-2 gap-y-1 text-nowrap '>
 							{featureName === 'Chat' && <ChatModeDropdown className='text-xs text-void-fg-3 bg-void-bg-1 border border-void-border-2 rounded py-0.5 px-1' />}
 							<ModelDropdown featureName={featureName} className='text-xs text-void-fg-3 bg-void-bg-1 rounded' />
+							{featureName === 'Chat' && <WebSearchToggleButton />}
 						</div>
 					</div>
 				)}

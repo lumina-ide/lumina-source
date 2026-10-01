@@ -961,6 +961,51 @@ const sendGeminiChat = async ({
 
 
 
+const geminiList = async ({ onSuccess, onError, settingsOfProvider }: ListParams_Internal<OpenaiCompatibleModelResponse>) => {
+	try {
+		const apiKey = settingsOfProvider.gemini.apiKey
+		if (!apiKey) {
+			onError({ error: 'Chave de API do Gemini não configurada.' })
+			return
+		}
+		const genAI = new GoogleGenAI({ apiKey })
+		const response = await genAI.models.list()
+		const models: OpenaiCompatibleModelResponse[] = []
+		for await (const m of response) {
+			if (m.name) {
+				const id = m.name.replace(/^models\//, '')
+				models.push({ id, created: 0, object: 'model', owned_by: 'google' })
+			}
+		}
+		onSuccess({ models })
+	} catch (error) {
+		onError({ error: error + '' })
+	}
+}
+
+const anthropicList = async ({ onSuccess, onError, settingsOfProvider }: ListParams_Internal<OpenaiCompatibleModelResponse>) => {
+	try {
+		const apiKey = settingsOfProvider.anthropic.apiKey
+		if (!apiKey) {
+			onError({ error: 'Chave de API da Anthropic não configurada.' })
+			return
+		}
+		const anthropic = new Anthropic({ apiKey })
+		const response = await anthropic.models.list()
+		const models: OpenaiCompatibleModelResponse[] = []
+		if (Array.isArray(response?.data)) {
+			for (const m of response.data) {
+				if (m.id) {
+					models.push({ id: m.id, created: 0, object: 'model', owned_by: 'anthropic' })
+				}
+			}
+		}
+		onSuccess({ models })
+	} catch (error) {
+		onError({ error: error + '' })
+	}
+}
+
 type CallFnOfProvider = {
 	[providerName in ProviderName]: {
 		sendChat: (params: SendChatParams_Internal) => Promise<void>;
@@ -973,27 +1018,27 @@ export const sendLLMMessageToProviderImplementation = {
 	anthropic: {
 		sendChat: sendAnthropicChat,
 		sendFIM: null,
-		list: null,
+		list: anthropicList,
 	},
 	openAI: {
 		sendChat: (params) => _sendOpenAICompatibleChat(params),
 		sendFIM: null,
-		list: null,
+		list: (params) => _openaiCompatibleList(params),
 	},
 	xAI: {
 		sendChat: (params) => _sendOpenAICompatibleChat(params),
 		sendFIM: null,
-		list: null,
+		list: (params) => _openaiCompatibleList(params),
 	},
 	gemini: {
 		sendChat: (params) => sendGeminiChat(params),
 		sendFIM: null,
-		list: null,
+		list: geminiList,
 	},
 	mistral: {
 		sendChat: (params) => _sendOpenAICompatibleChat(params),
 		sendFIM: (params) => sendMistralFIM(params),
-		list: null,
+		list: (params) => _openaiCompatibleList(params),
 	},
 	ollama: {
 		sendChat: (params) => _sendOpenAICompatibleChat(params),
@@ -1001,14 +1046,14 @@ export const sendLLMMessageToProviderImplementation = {
 		list: ollamaList,
 	},
 	openAICompatible: {
-		sendChat: (params) => _sendOpenAICompatibleChat(params), // using openai's SDK is not ideal (your implementation might not do tools, reasoning, FIM etc correctly), talk to us for a custom integration
+		sendChat: (params) => _sendOpenAICompatibleChat(params),
 		sendFIM: (params) => _sendOpenAICompatibleFIM(params),
-		list: null,
+		list: (params) => _openaiCompatibleList(params),
 	},
 	openRouter: {
 		sendChat: (params) => _sendOpenAICompatibleChat(params),
 		sendFIM: (params) => _sendOpenAICompatibleFIM(params),
-		list: null,
+		list: (params) => _openaiCompatibleList(params),
 	},
 	vLLM: {
 		sendChat: (params) => _sendOpenAICompatibleChat(params),
@@ -1018,12 +1063,12 @@ export const sendLLMMessageToProviderImplementation = {
 	deepseek: {
 		sendChat: (params) => _sendOpenAICompatibleChat(params),
 		sendFIM: null,
-		list: null,
+		list: (params) => _openaiCompatibleList(params),
 	},
 	moonshot: {
 		sendChat: (params) => _sendOpenAICompatibleChat(params),
 		sendFIM: null,
-		list: null,
+		list: (params) => _openaiCompatibleList(params),
 	},
 	nvidia: {
 		sendChat: (params) => _sendOpenAICompatibleChat(params),
@@ -1033,11 +1078,10 @@ export const sendLLMMessageToProviderImplementation = {
 	groq: {
 		sendChat: (params) => _sendOpenAICompatibleChat(params),
 		sendFIM: null,
-		list: null,
+		list: (params) => _openaiCompatibleList(params),
 	},
 
 	lmStudio: {
-		// lmStudio has no suffix parameter in /completions, so sendFIM might not work
 		sendChat: (params) => _sendOpenAICompatibleChat(params),
 		sendFIM: (params) => _sendOpenAICompatibleFIM(params),
 		list: (params) => _openaiCompatibleList(params),
@@ -1045,12 +1089,12 @@ export const sendLLMMessageToProviderImplementation = {
 	liteLLM: {
 		sendChat: (params) => _sendOpenAICompatibleChat(params),
 		sendFIM: (params) => _sendOpenAICompatibleFIM(params),
-		list: null,
+		list: (params) => _openaiCompatibleList(params),
 	},
 	googleVertex: {
 		sendChat: (params) => _sendOpenAICompatibleChat(params),
 		sendFIM: null,
-		list: null,
+		list: (params) => _openaiCompatibleList(params),
 	},
 	microsoftAzure: {
 		sendChat: (params) => _sendOpenAICompatibleChat(params),
@@ -1060,7 +1104,7 @@ export const sendLLMMessageToProviderImplementation = {
 	awsBedrock: {
 		sendChat: (params) => _sendOpenAICompatibleChat(params),
 		sendFIM: null,
-		list: null,
+		list: (params) => _openaiCompatibleList(params),
 	},
 	llamaServer: {
 		sendChat: (params) => _sendOpenAICompatibleChat(params),

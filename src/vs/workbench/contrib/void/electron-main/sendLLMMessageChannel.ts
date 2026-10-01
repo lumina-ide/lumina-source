@@ -146,7 +146,16 @@ export class LLMMessageChannel implements IServerChannel {
 			onSuccess: (p) => { emitters.success.fire({ requestId, ...p }); },
 			onError: (p) => { emitters.error.fire({ requestId, ...p }); },
 		}
-		sendLLMMessageToProviderImplementation[providerName].list(mainThreadParams)
+		try {
+			const providerImpl = sendLLMMessageToProviderImplementation[providerName]
+			if (providerImpl && typeof providerImpl.list === 'function') {
+				providerImpl.list(mainThreadParams)
+			} else {
+				emitters.error.fire({ requestId, error: `Listagem de modelos não suportada para o provedor ${providerName}` })
+			}
+		} catch (e: any) {
+			emitters.error.fire({ requestId, error: e?.message || 'Erro ao consultar modelos da API' })
+		}
 	}
 
 
