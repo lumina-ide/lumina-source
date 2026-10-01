@@ -130,6 +130,105 @@ const checkIfIsFolder = (uriStr: string) => {
 	return false
 }
 
+const decodeHtmlEntities = (text: string): string => {
+	return text
+		.replace(/&amp;/g, '&')
+		.replace(/&lt;/g, '<')
+		.replace(/&gt;/g, '>')
+		.replace(/&quot;/g, '"')
+		.replace(/&#39;/g, "'")
+		.replace(/&#x27;/g, "'")
+		.replace(/&nbsp;/g, ' ')
+		.replace(/&hellip;/g, '...')
+		.replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
+}
+
+const searchDuckDuckGo = async (query: string): Promise<{ title: string; url: string; snippet: string }[]> => {
+	const cleanQuery = query.trim();
+	if (!cleanQuery) return [];
+
+	const headers = {
+		'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+		'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+		'Accept-Language': 'en-US,en;q=0.9,pt-BR;q=0.8,pt;q=0.7',
+	};
+
+	try {
+		// 1. Try DuckDuckGo HTML search endpoint
+		const res = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(cleanQuery)}`, {
+			method: 'GET',
+			headers
+		});
+
+		if (res.ok) {
+			const html = await res.text();
+			const results: { title: string; url: string; snippet: string }[] = [];
+
+			const resultBlocks = html.split(/<div class="[^"]*result[^"]*results_links[^"]*">/i);
+			for (let i = 1; i < resultBlocks.length && results.length < 6; i++) {
+				const block = resultBlocks[i];
+
+				const linkMatch = block.match(/<a[^>]*class="[^"]*result__a[^"]*"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i);
+				if (!linkMatch) continue;
+
+				let rawUrl = linkMatch[1];
+				const uddgMatch = rawUrl.match(/[?&]uddg=([^&]+)/);
+				let finalUrl = uddgMatch ? decodeURIComponent(uddgMatch[1]) : rawUrl;
+				if (finalUrl.startsWith('//')) finalUrl = 'https:' + finalUrl;
+
+				const title = decodeHtmlEntities(linkMatch[2].replace(/<[^>]+>/g, '').trim());
+
+				const snippetMatch = block.match(/<a[^>]*class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/a>/i) ||
+					block.match(/<div[^>]*class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+				const snippet = snippetMatch ? decodeHtmlEntities(snippetMatch[1].replace(/<[^>]+>/g, '').trim()) : '';
+
+				if (title && finalUrl) {
+					results.push({ title, url: finalUrl, snippet });
+				}
+			}
+
+			if (results.length > 0) return results;
+		}
+	} catch (e) {
+		console.warn('DuckDuckGo HTML search failed, attempting API fallback:', e);
+	}
+
+	// 2. Fallback to DuckDuckGo Instant Answer API
+	try {
+		const apiRes = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(cleanQuery)}&format=json&no_html=1&skip_disambig=1`);
+		if (apiRes.ok) {
+			const data = await apiRes.json() as any;
+			const results: { title: string; url: string; snippet: string }[] = [];
+
+			if (data.AbstractText && data.AbstractURL) {
+				results.push({
+					title: data.Heading || cleanQuery,
+					url: data.AbstractURL,
+					snippet: data.AbstractText,
+				});
+			}
+
+			if (Array.isArray(data.RelatedTopics)) {
+				for (const topic of data.RelatedTopics) {
+					if (topic.Text && topic.FirstURL && results.length < 6) {
+						results.push({
+							title: topic.Text.split(' - ')[0] || topic.Text.slice(0, 60),
+							url: topic.FirstURL,
+							snippet: topic.Text,
+						});
+					}
+				}
+			}
+
+			if (results.length > 0) return results;
+		}
+	} catch (e) {
+		console.error('DuckDuckGo API search fallback failed:', e);
+	}
+
+	return [];
+}
+
 export interface IToolsService {
 	readonly _serviceBrand: undefined;
 	validateParams: ValidateBuiltinParams;
@@ -227,6 +326,12 @@ export class ToolsService implements IToolsService {
 				const query = validateStr('query', queryUnknown);
 				const isRegex = validateBoolean(isRegexUnknown, { default: false });
 				return { uri, query, isRegex };
+			},
+			web_search: (params: RawToolParamsObj) => {
+				const { query: queryUnknown, page_number: pageNumberUnknown } = params
+				const query = validateStr('query', queryUnknown)
+				const pageNumber = validatePageNum(pageNumberUnknown)
+				return { query, pageNumber }
 			},
 
 			read_lint_errors: (params: RawToolParamsObj) => {
@@ -395,6 +500,11 @@ export class ToolsService implements IToolsService {
 				return { result: { lines } };
 			},
 
+			web_search: async ({ query }) => {
+				const results = await searchDuckDuckGo(query)
+				return { result: { results, query } }
+			},
+
 			read_lint_errors: async ({ uri }) => {
 				await timeout(1000)
 				const { lintErrors } = this._getLintErrors(uri)
@@ -506,6 +616,15 @@ export class ToolsService implements IToolsService {
 					return `Line ${n}:\n\`\`\`\n${lineContent}\n\`\`\``
 				}).join('\n\n');
 				return lines;
+			},
+			web_search: (params, result) => {
+				if (!result.results || result.results.length === 0) {
+					return `No web search results found for query: "${params.query}".`
+				}
+				const formatted = result.results.map((r, i) => {
+					return `${i + 1}. [${r.title}](${r.url})\n   ${r.snippet}`
+				}).join('\n\n')
+				return `Web Search Results for "${params.query}":\n\n${formatted}`
 			},
 			read_lint_errors: (params, result) => {
 				return result.lintErrors ?

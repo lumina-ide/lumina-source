@@ -260,6 +260,15 @@ export const builtinTools: {
 		}
 	},
 
+	web_search: {
+		name: 'web_search',
+		description: `Searches the live web using DuckDuckGo (free, no API key required). Use this to look up current documentation, library APIs, error messages, and package information.`,
+		params: {
+			query: { description: 'The search query to look up on the web.' },
+			...paginationParam,
+		},
+	},
+
 	read_lint_errors: {
 		name: 'read_lint_errors',
 		description: `Use this tool to view all the lint errors on a file.`,

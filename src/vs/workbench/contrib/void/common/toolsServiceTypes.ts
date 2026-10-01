@@ -46,9 +46,10 @@ export type BuiltinToolCallParams = {
 	'read_file': { uri: URI, startLine: number | null, endLine: number | null, pageNumber: number },
 	'ls_dir': { uri: URI, pageNumber: number },
 	'get_dir_tree': { uri: URI },
-	'search_pathnames_only': { query: string, includePattern: string | null, pageNumber: number },
 	'search_for_files': { query: string, isRegex: boolean, searchInFolder: URI | null, pageNumber: number },
 	'search_in_file': { uri: URI, query: string, isRegex: boolean },
+	'search_pathnames_only': { query: string, includePattern: string | null, pageNumber: number },
+	'web_search': { query: string, pageNumber?: number },
 	'read_lint_errors': { uri: URI },
 	// ---
 	'rewrite_file': { uri: URI, newContent: string },
@@ -70,6 +71,7 @@ export type BuiltinToolResultType = {
 	'search_pathnames_only': { uris: URI[], hasNextPage: boolean },
 	'search_for_files': { uris: URI[], hasNextPage: boolean },
 	'search_in_file': { lines: number[]; },
+	'web_search': { results: { title: string, url: string, snippet: string }[], query: string },
 	'read_lint_errors': { lintErrors: LintErrorItem[] | null },
 	// ---
 	'rewrite_file': Promise<{ lintErrors: LintErrorItem[] | null }>,

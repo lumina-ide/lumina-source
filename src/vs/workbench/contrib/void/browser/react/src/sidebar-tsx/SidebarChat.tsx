@@ -1420,6 +1420,7 @@ const titleOfBuiltinToolName = {
 
 	'read_lint_errors': { done: `Read lint errors`, proposed: 'Read lint errors', running: loadingTitleWrapper('Reading lint errors') },
 	'search_in_file': { done: 'Searched in file', proposed: 'Search in file', running: loadingTitleWrapper('Searching in file') },
+	'web_search': { done: 'Searched web', proposed: 'Search web', running: loadingTitleWrapper('Searching web') },
 } as const satisfies Record<BuiltinToolName, { done: any, proposed: any, running: any }>
 
 
@@ -1558,6 +1559,12 @@ const toolNameToDesc = (toolName: BuiltinToolName, _toolParams: BuiltinToolCallP
 			return {
 				desc1: getBasename(toolParams.uri.fsPath),
 				desc1Info: getRelative(toolParams.uri, accessor),
+			}
+		},
+		'web_search': () => {
+			const toolParams = _toolParams as BuiltinToolCallParams['web_search']
+			return {
+				desc1: `"${toolParams.query}"`,
 			}
 		}
 	}
@@ -2444,6 +2451,43 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 
 			return <ToolHeaderWrapper {...componentParams} />
 		},
+	},
+	'web_search': {
+		resultWrapper: ({ toolMessage }) => {
+			const accessor = useAccessor()
+			const isError = false
+			const isRejected = toolMessage.type === 'rejected'
+			const title = getTitle(toolMessage)
+			const { desc1, desc1Info } = toolNameToDesc(toolMessage.name, toolMessage.params, accessor)
+			const icon = null
+
+			if (toolMessage.type === 'tool_request' || toolMessage.type === 'running_now') return null
+
+			const componentParams: ToolHeaderParams = { title, desc1, desc1Info, isError, icon, isRejected }
+
+			if (toolMessage.type === 'success') {
+				const { result } = toolMessage
+				componentParams.numResults = result.results?.length ?? 0
+				componentParams.children = (!result.results || result.results.length === 0) ? undefined
+					: <ToolChildrenWrapper>
+						<div className='flex flex-col gap-2 p-1 text-xs'>
+							{result.results.map((r, i) => (
+								<div key={i} className='flex flex-col gap-0.5 border-b border-void-border-2/40 pb-1.5 last:border-none'>
+									<a href={r.url} target='_blank' rel='noopener noreferrer' className='font-semibold text-void-fg-1 hover:underline text-xs flex items-center gap-1 text-blue-400'>
+										<span>{r.title}</span>
+									</a>
+									<span className='text-[10px] text-void-fg-4 truncate'>{r.url}</span>
+									{r.snippet && <span className='text-void-fg-3 text-[11px] leading-snug'>{r.snippet}</span>}
+								</div>
+							))}
+						</div>
+					</ToolChildrenWrapper>
+			} else if (toolMessage.type === 'tool_error') {
+				componentParams.bottomChildren = <BottomChildren title='Error'><CodeChildren>{toolMessage.result}</CodeChildren></BottomChildren>
+			}
+
+			return <ToolHeaderWrapper {...componentParams} />
+		}
 	},
 };
 
