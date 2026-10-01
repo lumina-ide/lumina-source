@@ -7,7 +7,7 @@ import { IVoidSettingsService } from './voidSettingsService.js';
 import { ILLMMessageService } from './sendLLMMessageService.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
-import { ProviderName, RefreshableProviderName, refreshableProviderNames, SettingsOfProvider } from './voidSettingsTypes.js';
+import { RefreshableProviderName, refreshableProviderNames, SettingsOfProvider } from './voidSettingsTypes.js';
 import { OllamaModelResponse, OpenaiCompatibleModelResponse } from './sendLLMMessageTypes.js';
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -66,7 +66,7 @@ function eq<T>(a: T[], b: T[]): boolean {
 export interface IRefreshModelService {
 	readonly _serviceBrand: undefined;
 	startRefreshingModels: (providerName: RefreshableProviderName, options: { enableProviderOnSuccess: boolean, doNotFire: boolean }) => void;
-	fetchRemoteModels: (providerName: ProviderName) => Promise<string[]>;
+	fetchRemoteModels: (providerName: RefreshableProviderName) => Promise<string[]>;
 	onDidChangeState: Event<RefreshableProviderName>;
 	state: RefreshModelStateOfProvider;
 }
@@ -194,10 +194,11 @@ export class RefreshModelService extends Disposable implements IRefreshModelServ
 
 	}
 
-	fetchRemoteModels: IRefreshModelService['fetchRemoteModels'] = (providerName: ProviderName) => {
+	fetchRemoteModels: IRefreshModelService['fetchRemoteModels'] = (providerName: RefreshableProviderName) => {
 		return new Promise((resolve, reject) => {
-			const listFn = providerName === 'ollama' ? this.llmMessageService.ollamaList
-				: this.llmMessageService.openAICompatibleList
+			const listFn = providerName === 'ollama'
+				? this.llmMessageService.ollamaList.bind(this.llmMessageService)
+				: this.llmMessageService.openAICompatibleList.bind(this.llmMessageService)
 
 			listFn({
 				providerName,

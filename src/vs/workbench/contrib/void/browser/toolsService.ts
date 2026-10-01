@@ -37,39 +37,38 @@ const validateStr = (argName: string, value: unknown) => {
 	return value
 }
 
-
 // We are NOT checking to make sure in workspace
 const validateURI = (uriStr: unknown, defaultRootUri?: URI) => {
 	if (uriStr === null) throw new Error(`Invalid LLM output: uri was null.`)
 	if (typeof uriStr !== 'string') throw new Error(`Invalid LLM output format: Provided uri must be a string, but it's a(n) ${typeof uriStr}. Full value: ${JSON.stringify(uriStr)}.`)
 
-	uriStr = uriStr.trim()
+	const trimmed = uriStr.trim()
 
 	// Check if it's already a full URI with scheme (e.g., vscode-remote://, file://, etc.)
-	if (uriStr.includes('://')) {
+	if (trimmed.includes('://')) {
 		try {
-			const uri = URI.parse(uriStr)
+			const uri = URI.parse(trimmed)
 			return uri
 		} catch (e) {
 			// If parsing fails, it's a malformed URI
-			throw new Error(`Invalid URI format: ${uriStr}. Error: ${e}`)
+			throw new Error(`Invalid URI format: ${trimmed}. Error: ${e}`)
 		}
 	} else {
 		// Check if it's an absolute path on Windows (e.g. C:\, C:/, or \\server\share)
-		const isWindowsAbsolute = /^[a-zA-Z]:[/\\]/.test(uriStr) || uriStr.startsWith('\\\\');
+		const isWindowsAbsolute = /^[a-zA-Z]:[/\\]/.test(trimmed) || trimmed.startsWith('\\\\');
 		if (isWindowsAbsolute) {
-			return URI.file(uriStr)
+			return URI.file(trimmed)
 		}
 
 		if (defaultRootUri) {
 			// If path starts with / or \, or ./, strip it to treat as relative to workspace root
-			let cleanRel = uriStr.replace(/^(\.\/|\.\\|\/|\\)+/, '')
+			let cleanRel = trimmed.replace(/^(\.\/|\.\\|\/|\\)+/, '')
 			if (!cleanRel) return defaultRootUri
 			return URI.joinPath(defaultRootUri, cleanRel)
 		}
 
 		// No scheme present, treat as file path
-		const uri = URI.file(uriStr)
+		const uri = URI.file(trimmed)
 		return uri
 	}
 }

@@ -225,11 +225,11 @@ type VoidStaticProviderInfo = { // doesn't change (not stateful)
 
 
 const defaultModelOptions = {
-	contextWindow: 4_096,
-	reservedOutputTokenSpace: 4_096,
+	contextWindow: 128_000,
+	reservedOutputTokenSpace: 8_192,
 	cost: { input: 0, output: 0 },
 	downloadable: false,
-	supportsSystemMessage: false,
+	supportsSystemMessage: 'system-role',
 	supportsFIM: false,
 	reasoningCapabilities: false,
 } as const satisfies VoidStaticModelInfo
@@ -1488,7 +1488,7 @@ export const getModelCapabilities = (
 	for (const modelName_ in modelOptions) {
 		const lowercaseModelName_ = modelName_.toLowerCase()
 		if (lowercaseModelName === lowercaseModelName_) {
-			return { ...modelOptions[modelName], ...overrides, modelName, recognizedModelName: modelName, isUnrecognizedModel: false };
+			return { ...modelOptions[modelName_], ...overrides, modelName, recognizedModelName: modelName_, isUnrecognizedModel: false };
 		}
 	}
 

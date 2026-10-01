@@ -261,9 +261,9 @@ const prepareOpenAIOrAnthropicMessages = ({
 	reservedOutputTokenSpace: number | null | undefined,
 }): { messages: AnthropicOrOpenAILLMMessage[], separateSystemMessage: string | undefined } => {
 
-	reservedOutputTokenSpace = Math.max(
-		contextWindow * 1 / 2, // reserve at least 1/4 of the token window length
-		reservedOutputTokenSpace ?? 4_096 // defaults to 4096
+	reservedOutputTokenSpace = Math.min(
+		contextWindow * 0.25,
+		Math.max(2_048, reservedOutputTokenSpace ?? 4_096)
 	)
 	let messages: (SimpleLLMMessage | { role: 'system', content: string })[] = deepClone(messages_)
 

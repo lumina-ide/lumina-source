@@ -120,7 +120,7 @@ const newOpenAICompatibleSDK = async ({ settingsOfProvider, providerName, includ
 		const thisConfig = settingsOfProvider[providerName]
 		const endpoint = `https://${thisConfig.project}.openai.azure.com/`;
 		const apiVersion = thisConfig.azureApiVersion ?? '2024-04-01-preview';
-                return new AzureOpenAI({ endpoint, apiKey: thisConfig.apiKey, apiVersion, dangerouslyAllowBrowser: (commonPayloadOpts as any).dangerouslyAllowBrowser } as any);
+		return new AzureOpenAI({ endpoint, apiKey: thisConfig.apiKey, apiVersion, dangerouslyAllowBrowser: (commonPayloadOpts as any).dangerouslyAllowBrowser } as any);
 	}
 	else if (providerName === 'awsBedrock') {
 		/**
@@ -218,7 +218,7 @@ const _sendOpenAICompatibleFIM = async ({ messages: { prefix, suffix, stopTokens
 			prompt: prefix,
 			suffix: suffix,
 			stop: stopTokens,
-			max_tokens: 300,
+			max_tokens: 4096,
 		})
 		.then(async response => {
 			const fullText = response.choices[0]?.text
@@ -341,7 +341,7 @@ const _sendOpenAICompatibleChat = async ({ messages, onText, onFinalMessage, onE
 
 	// repetition penalty for local providers (ollama, vLLM, lmStudio, llamaServer) and model overrides
 	const thisLocalConfig = (settingsOfProvider as any)[providerName];
-	const configuredRepeatPenalty = overridesOfModel?.repeatPenalty ?? thisLocalConfig?.repeatPenalty;
+	const configuredRepeatPenalty = overridesOfModel?.llamaServer?.penalties?.repeatPenalty ?? thisLocalConfig?.repeatPenalty;
 	if (configuredRepeatPenalty !== undefined && configuredRepeatPenalty !== '') {
 		const penalty = typeof configuredRepeatPenalty === 'number' ? configuredRepeatPenalty : parseFloat(configuredRepeatPenalty);
 		if (!isNaN(penalty) && penalty > 0) {
@@ -362,12 +362,12 @@ const _sendOpenAICompatibleChat = async ({ messages, onText, onFinalMessage, onE
 
 	if (providerName === 'llamaServer') {
 		const thisConfig = settingsOfProvider[providerName];
-		
+
 		const temp = parseFloat(thisConfig.temperature);
 		options.temperature = !isNaN(temp) ? temp : 0.1;
 
 		const maxTok = parseInt(thisConfig.maxTokens);
-		options.max_tokens = !isNaN(maxTok) ? maxTok : 2048;
+		options.max_tokens = !isNaN(maxTok) ? maxTok : 4096;
 
 		const repPen = parseFloat((thisConfig as any).repeatPenalty || '1.1');
 		if (!isNaN(repPen)) {
@@ -378,12 +378,6 @@ const _sendOpenAICompatibleChat = async ({ messages, onText, onFinalMessage, onE
 			'<|im_end|>',
 			'<|end_of_text|>',
 			'<|im_start|>',
-			'User:',
-			'Assistant:',
-			'System:',
-			'User ',
-			'Assistant ',
-			'System '
 		];
 
 		const customSystemPrompt = thisConfig.systemPrompt;
@@ -391,9 +385,9 @@ const _sendOpenAICompatibleChat = async ({ messages, onText, onFinalMessage, onE
 			const messagesCopy = [...options.messages];
 			const systemMsgIndex = messagesCopy.findIndex(m => m.role === 'system');
 			if (systemMsgIndex !== -1) {
-				messagesCopy[systemMsgIndex] = { 
-					...messagesCopy[systemMsgIndex], 
-					content: messagesCopy[systemMsgIndex].content + "\n\n" + customSystemPrompt 
+				messagesCopy[systemMsgIndex] = {
+					...messagesCopy[systemMsgIndex],
+					content: messagesCopy[systemMsgIndex].content + "\n\n" + customSystemPrompt
 				};
 			} else {
 				messagesCopy.unshift({ role: 'system', content: customSystemPrompt });
@@ -462,13 +456,13 @@ const _sendOpenAICompatibleChat = async ({ messages, onText, onFinalMessage, onE
 				})
 
 			}
-                        // on final
-                        if (!fullTextSoFar && !fullReasoningSoFar && !toolName) {
-                                onError({ message: 'Lumina: Response from model was empty.', fullError: null })
-                        }
-                        const toolCall = rawToolCallObjOfParamsStr(toolName, toolParamsStr, toolId)
-                        const toolCallObj = toolCall ? { toolCall } : {}
-                        onFinalMessage({ fullText: fullTextSoFar, fullReasoning: fullReasoningSoFar, anthropicReasoning: null, ...toolCallObj });
+			// on final
+			if (!fullTextSoFar && !fullReasoningSoFar && !toolName) {
+				onError({ message: 'Lumina: Response from model was empty.', fullError: null })
+			}
+			const toolCall = rawToolCallObjOfParamsStr(toolName, toolParamsStr, toolId)
+			const toolCallObj = toolCall ? { toolCall } : {}
+			onFinalMessage({ fullText: fullTextSoFar, fullReasoning: fullReasoningSoFar, anthropicReasoning: null, ...toolCallObj });
 		})
 		// when error/fail - this catches errors of both .create() and .then(for await)
 		.catch(error => {
@@ -703,7 +697,7 @@ const sendMistralFIM = ({ messages, onFinalMessage, onError, settingsOfProvider,
 			prompt: messages.prefix,
 			suffix: messages.suffix,
 			stream: false,
-			maxTokens: 300,
+			maxTokens: 4096,
 			stop: messages.stopTokens,
 		})
 		.then(async response => {
@@ -904,6 +898,17 @@ const sendGeminiChat = async ({
 
 			// Process the stream
 			for await (const chunk of stream) {
+				// extract thoughts if present in parts
+				const candidate = chunk.candidates?.[0]
+				if (candidate?.content?.parts) {
+					for (const part of candidate.content.parts) {
+						if ((part as any).thought) {
+							const thoughtText = part.text ?? ''
+							fullReasoningSoFar += thoughtText
+						}
+					}
+				}
+
 				// message
 				const newText = chunk.text ?? ''
 				fullTextSoFar += newText
@@ -916,8 +921,6 @@ const sendGeminiChat = async ({
 					toolParamsStr = JSON.stringify(functionCall.args ?? {})
 					toolId = functionCall.id ?? ''
 				}
-
-				// (do not handle reasoning yet)
 
 				// call onText
 				onText({
