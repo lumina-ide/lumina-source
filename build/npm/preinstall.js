@@ -15,7 +15,7 @@ if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
 	}
 }
 
-if (process.env['npm_execpath'].includes('yarn')) {
+if (process.env['npm_execpath'] && process.env['npm_execpath'].includes('yarn')) {
 	console.error('\x1b[1;31m*** Seems like you are using `yarn` which is not supported in this repo any more, please use `npm i` instead. ***\x1b[0;0m');
 	throw new Error();
 }
@@ -41,9 +41,24 @@ if (process.arch !== os.arch()) {
 function hasSupportedVisualStudioVersion() {
 	const fs = require('fs');
 	const path = require('path');
-	// Translated over from
-	// https://source.chromium.org/chromium/chromium/src/+/master:build/vs_toolchain.py;l=140-175
-	const supportedVersions = ['2022', '2019', '2017'];
+	const cp = require('child_process');
+
+	// 1. Try vswhere.exe first (official Microsoft detection)
+	const programFiles86Path = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
+	const vswherePath = path.join(programFiles86Path, 'Microsoft Visual Studio', 'Installer', 'vswhere.exe');
+	if (fs.existsSync(vswherePath)) {
+		try {
+			const vsPath = cp.execFileSync(vswherePath, ['-latest', '-products', '*', '-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64', '-property', 'installationPath'], { encoding: 'utf8' }).trim();
+			if (vsPath && fs.existsSync(vsPath)) {
+				return 1;
+			}
+		} catch (e) {
+			// ignore and fallback to folder scan
+		}
+	}
+
+	// 2. Folder scanning fallback
+	const supportedVersions = ['2026', '18', '2022', '17', '2019', '2017'];
 
 	const availableVersions = [];
 	for (const version of supportedVersions) {
@@ -52,8 +67,7 @@ function hasSupportedVisualStudioVersion() {
 			availableVersions.push(version);
 			break;
 		}
-		const programFiles86Path = process.env['ProgramFiles(x86)'];
-		const programFiles64Path = process.env['ProgramFiles'];
+		const programFiles64Path = process.env['ProgramFiles'] || 'C:\\Program Files';
 
 		const vsTypes = ['Enterprise', 'Professional', 'Community', 'Preview', 'BuildTools', 'IntPreview'];
 		if (programFiles64Path) {
