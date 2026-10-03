@@ -135,6 +135,7 @@ for (let dir of dirs) {
 
 		setNpmrcConfig('build', opts.env);
 		npmInstall('build', opts);
+		try { require('../lib/patch-vsce.cjs'); } catch (e) { console.error('Failed to run patch-vsce:', e); }
 		continue;
 	}
 

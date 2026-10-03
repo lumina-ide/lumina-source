@@ -36,6 +36,8 @@ Unlike other AI editors, Lumina focuses on privacy, developer autonomy, and offl
 
 ### Key Features
 *   **100% Local Inference:** Built-in integration with `llama.cpp` to run model inference locally on your own machine.
+*   **Built-in Free Web Search:** Native DuckDuckGo web search tool (`web_search`) without API keys, costs or subscriptions, with an intuitive 1-click toggle button directly in the chat toolbar.
+*   **Dynamic API Model Listing:** Instantly fetch and update available models from remote providers (OpenRouter, Groq, Gemini, Anthropic, DeepSeek, Mistral, xAI, Ollama, etc.).
 *   **Privacy First:** Directly communicates with your local services (or remote APIs) with zero data retention or telemetry from our side.
 *   **Advanced AI Agent:** Run agents that can read, write, and execute files within your workspace to solve complex tasks.
 *   **Visual Customizations:** Upgraded settings panel with manual parameters control (GPU layers, threads, temperature, custom system prompts).
@@ -73,6 +75,8 @@ Ao contrário de outros editores de IA, o Lumina é focado em privacidade, auton
 
 ### Principais Funcionalidades
 *   **Inferência 100% Local:** Integração nativa com `llama.cpp` para rodar modelos localmente na sua própria máquina.
+*   **Busca Web Gratuita Integrada:** Ferramenta nativa DuckDuckGo (`web_search`) sem necessidade de chaves de API, custos ou assinaturas, com botão prático no chat para ligar/desligar com 1 clique.
+*   **Listagem Dinâmica de Modelos:** Busca automática dos modelos disponíveis em provedores remotos (OpenRouter, Groq, Gemini, Anthropic, DeepSeek, Mistral, xAI, Ollama, etc.).
 *   **Privacidade em Primeiro Lugar:** Comunicação direta com seus serviços locais (ou APIs remotas) com zero retenção de dados ou telemetria de nossa parte.
 *   **Agente de IA Avançado:** Execute agentes capazes de ler, escrever e modificar arquivos no seu espaço de trabalho para resolver tarefas complexas.
 *   **Parâmetros de Modelos Customizáveis:** Painel de configurações aprimorado com controle manual de parâmetros (GPU layers, threads, temperatura, stop tokens, prompts de sistema).
@@ -109,7 +113,12 @@ Lumina is a fork of [Void](https://github.com/voideditor/void), which is itself 
 *   For codebase overview / *Visão geral da estrutura:* [LUMINA_CODEBASE_GUIDE](./LUMINA_CODEBASE_GUIDE.md)
 *   For compilation and build guides / *Instruções de compilação e build:* [BUILDING](./BUILDING.md)
 
-## 📞 Support & Community / Suporte e Contato
+> **Notice:** Lumina is maintained privately by Neuronal and currently does not accept external contributions, pull requests, or third-party feature requests.
+>
+> *Nota: O Lumina é mantido de forma privada pela Neuronal e atualmente não aceita contribuições externas, pull requests ou solicitações de terceiros.*
+
+## 📞 Support & Contact / Suporte e Contato
 
 *   **Website:** [neuronal.ia.br](https://neuronal.ia.br)
 *   **Email:** contato@neuronal.ia.br
+

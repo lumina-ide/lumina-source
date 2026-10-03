@@ -4,24 +4,27 @@ All notable changes to Lumina are documented here.
 
 ---
 
-## [Unreleased]
+## [0.1.24] — 2026-10-02
 
-### Fixed — Security
-- **Approval buttons invisible when agent paused** — Fixed `isCheckpointGhost` logic that was applying `opacity-50 pointer-events-none` to approval buttons when the agent was waiting for user approval (LLM paused streaming). Tool request messages now always remain clickable regardless of checkpoint state. The ghost effect now only affects the tool result display, never the approval controls.
+### Added — Web Search (Free DuckDuckGo)
+- **Built-in DuckDuckGo Web Search** — Added free native web search tool (`web_search`) without requiring API keys or third-party paid subscriptions.
+- **Asynchronous scraping engine** with fallback to DuckDuckGo Instant Answers API. Available automatically in Agent and Gather modes.
+- **Chat Web Toggle Button (Globe Icon)** — Added an interactive Web button in the bottom chat toolbar next to model & mode selectors. Allows enabling (blue) or disabling (gray) web search on the fly with a single click.
 
-### Added — Visual Branding
-- **Lumina Yellow theme (default)** — New default color theme inspired by Mayukai Mirage Gruvbox Darktooth with warm yellow (#fabd2f) and orange (#fe8019) accents. Features a dark background (#282828) with excellent readability for all-day development work.
-- **New Lumina icon set** — Completely redesigned application icons and installer graphics with new Lumina branding. Includes:
-  - Updated `.ico` files for Windows shortcuts and task bar
-  - New `.bmp` graphics for installer wizard
-  - Refreshed logo assets throughout the application
+### Added — Dynamic API Model Listing
+- **Dynamic Model Fetching** — Implemented provider model listing (`list`) for remote providers: OpenRouter, OpenAI-Compatible, Groq, Gemini, Anthropic, DeepSeek, Mistral, xAI, LiteLLM, Moonshot, Ollama and more.
+- **IPC resilience** — Hardened IPC communication channels to prevent UI locking in "Searching..." when API keys are invalid or endpoints are unreachable.
 
-### Updated
-- **Default color theme** — Lumina Yellow replaces Lumina Dark as the default theme for new installations
-- **Windows installer** — Updated with new Lumina branding icons
-- **Theme colors** — Default background color changed from `#070f1c` (navy) to `#282828` (warm dark) to match Lumina Yellow theme
+### Fixed — Build & Toolchain
+- **Visual Studio 18 / 2026 Build Tools support** — Integrated Microsoft's official `vswhere.exe` in `build/npm/preinstall.js` for Windows compilers detection and fixed `npm_execpath` crash.
+- **npm list ELSPROBLEMS tolerance** — Added automated build patch (`build/lib/patch-vsce.cjs`) so `@vscode/vsce` tolerates npm 10+ exit codes when packaging internal extensions.
+- **Type definitions** — Fixed `OpenaiCompatibleModelResponse` imports in `sendLLMMessage.impl.ts`.
+
+### Security & Privacy
+- **Private development model** — Removed external contribution templates and automated GitHub triage hooks. Contributions are managed exclusively by Neuronal.
 
 ---
+
 
 ## [0.1.1] — 2025-05-11
 

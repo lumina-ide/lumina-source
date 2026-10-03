@@ -77,10 +77,13 @@ crashpad/
 *.dmp
 *.crash
 
-# Lumina — author info (private)
+# Lumina — author info & repository templates (private)
 .mailmap
 AUTHORS
 CONTRIBUTORS
+CONTRIBUTING*
+.github/
 
 # Lumina — local llama binaries
 resources/llama/
+
