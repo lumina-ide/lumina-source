@@ -23,1119 +23,990 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { activeLlamaServerPort } from '../llamaServerState.js';
 
 const getGoogleApiKey = async () => {
-	// module‑level singleton
-	const auth = new GoogleAuth({ scopes: `https://www.googleapis.com/auth/cloud-platform` });
-	const key = await auth.getAccessToken()
-	if (!key) throw new Error(`Google API failed to generate a key.`)
-	return key
+    // module‑level singleton
+    const auth = new GoogleAuth({ scopes: `https://www.googleapis.com/auth/cloud-platform` });
+    const key = await auth.getAccessToken()
+    if (!key) throw new Error(`Google API failed to generate a key.`)
+    return key
 }
 
-
-
-
 type InternalCommonMessageParams = {
-	onText: OnText;
-	onFinalMessage: OnFinalMessage;
-	onError: OnError;
-	providerName: ProviderName;
-	settingsOfProvider: SettingsOfProvider;
-	modelSelectionOptions: ModelSelectionOptions | undefined;
-	overridesOfModel: OverridesOfModel | undefined;
-	modelName: string;
-	_setAborter: (aborter: () => void) => void;
+    onText: OnText;
+    onFinalMessage: OnFinalMessage;
+    onError: OnError;
+    providerName: ProviderName;
+    settingsOfProvider: SettingsOfProvider;
+    modelSelectionOptions: ModelSelectionOptions | undefined;
+    overridesOfModel: OverridesOfModel | undefined;
+    modelName: string;
+    _setAborter: (aborter: () => void) => void;
 }
 
 type SendChatParams_Internal = InternalCommonMessageParams & {
-	messages: LLMChatMessage[];
-	separateSystemMessage: string | undefined;
-	chatMode: ChatMode | null;
-	mcpTools: InternalToolInfo[] | undefined;
+    messages: LLMChatMessage[];
+    separateSystemMessage: string | undefined;
+    chatMode: ChatMode | null;
+    mcpTools: InternalToolInfo[] | undefined;
 }
 type SendFIMParams_Internal = InternalCommonMessageParams & { messages: LLMFIMMessage; separateSystemMessage: string | undefined; }
 export type ListParams_Internal<ModelResponse> = ModelListParams<ModelResponse>
-
 
 const invalidApiKeyMessage = (providerName: ProviderName) => `Invalid ${displayInfoOfProviderName(providerName).title} API key.`
 
 // ------------ OPENAI-COMPATIBLE (HELPERS) ------------
 
-
-
 const parseHeadersJSON = (s: string | undefined): Record<string, string | null | undefined> | undefined => {
-	if (!s) return undefined
-	try {
-		return JSON.parse(s)
-	} catch (e) {
-		throw new Error(`Error parsing OpenAI-Compatible headers: ${s} is not a valid JSON.`)
-	}
+    if (!s) return undefined
+    try {
+        return JSON.parse(s)
+    } catch (e) {
+        throw new Error(`Error parsing OpenAI-Compatible headers: ${s} is not a valid JSON.`)
+    }
 }
 
 const newOpenAICompatibleSDK = async ({ settingsOfProvider, providerName, includeInPayload }: { settingsOfProvider: SettingsOfProvider, providerName: ProviderName, includeInPayload?: { [s: string]: any } }) => {
-	const commonPayloadOpts: ClientOptions = {
-		dangerouslyAllowBrowser: true,
-		...includeInPayload,
-	}
-	if (providerName === 'openAI') {
-		const thisConfig = settingsOfProvider[providerName]
-		return new OpenAI({ apiKey: thisConfig.apiKey, ...commonPayloadOpts })
-	}
-	else if (providerName === 'ollama') {
-		const thisConfig = settingsOfProvider[providerName]
-		return new OpenAI({ baseURL: `${thisConfig.endpoint}/v1`, apiKey: 'noop', ...commonPayloadOpts })
-	}
-	else if (providerName === 'vLLM') {
-		const thisConfig = settingsOfProvider[providerName]
-		return new OpenAI({ baseURL: `${thisConfig.endpoint}/v1`, apiKey: 'noop', ...commonPayloadOpts })
-	}
-	else if (providerName === 'liteLLM') {
-		const thisConfig = settingsOfProvider[providerName]
-		return new OpenAI({ baseURL: `${thisConfig.endpoint}/v1`, apiKey: 'noop', ...commonPayloadOpts })
-	}
-	else if (providerName === 'lmStudio') {
-		const thisConfig = settingsOfProvider[providerName]
-		return new OpenAI({ baseURL: `${thisConfig.endpoint}/v1`, apiKey: 'noop', ...commonPayloadOpts })
-	}
-	else if (providerName === 'openRouter') {
-		const thisConfig = settingsOfProvider[providerName]
-		return new OpenAI({
-			baseURL: 'https://openrouter.ai/api/v1',
-			apiKey: thisConfig.apiKey,
-			defaultHeaders: {
-				'HTTP-Referer': 'https://neuronal.ia.br/lumina', // Optional, for including your app on openrouter.ai rankings.
-				'X-Title': 'Lumina', // Optional. Shows in rankings on openrouter.ai.
-			},
-			...commonPayloadOpts,
-		})
-	}
-	else if (providerName === 'googleVertex') {
-		// https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/call-vertex-using-openai-library
-		const thisConfig = settingsOfProvider[providerName]
-		const baseURL = `https://${thisConfig.region}-aiplatform.googleapis.com/v1/projects/${thisConfig.project}/locations/${thisConfig.region}/endpoints/${'openapi'}`
-		const apiKey = await getGoogleApiKey()
-		return new OpenAI({ baseURL: baseURL, apiKey: apiKey, ...commonPayloadOpts })
-	}
-	else if (providerName === 'microsoftAzure') {
-		// https://learn.microsoft.com/en-us/rest/api/aifoundry/model-inference/get-chat-completions/get-chat-completions?view=rest-aifoundry-model-inference-2024-05-01-preview&tabs=HTTP
-		//  https://github.com/openai/openai-node?tab=readme-ov-file#microsoft-azure-openai
-		const thisConfig = settingsOfProvider[providerName]
-		const endpoint = `https://${thisConfig.project}.openai.azure.com/`;
-		const apiVersion = thisConfig.azureApiVersion ?? '2024-04-01-preview';
-		return new AzureOpenAI({ endpoint, apiKey: thisConfig.apiKey, apiVersion, dangerouslyAllowBrowser: (commonPayloadOpts as any).dangerouslyAllowBrowser } as any);
-	}
-	else if (providerName === 'awsBedrock') {
-		/**
-		  * We treat Bedrock as *OpenAI-compatible only through a proxy*:
-		  *   • LiteLLM default → http://localhost:4000/v1
-		  *   • Bedrock-Access-Gateway → https://<api-id>.execute-api.<region>.amazonaws.com/openai/
-		  *
-		  * The native Bedrock runtime endpoint
-		  *   https://bedrock-runtime.<region>.amazonaws.com
-		  * is **NOT** OpenAI-compatible, so we do *not* fall back to it here.
-		  */
-		const { endpoint, apiKey } = settingsOfProvider.awsBedrock
-
-		// ① use the user-supplied proxy if present
-		// ② otherwise default to local LiteLLM
-		let baseURL = endpoint || 'http://localhost:4000/v1'
-
-		// Normalize: make sure we end with “/v1”
-		if (!baseURL.endsWith('/v1'))
-			baseURL = baseURL.replace(/\/+$/, '') + '/v1'
-
-		return new OpenAI({ baseURL, apiKey, ...commonPayloadOpts })
-	}
-
-
-	else if (providerName === 'deepseek') {
-		const thisConfig = settingsOfProvider[providerName]
-		return new OpenAI({ baseURL: 'https://api.deepseek.com/v1', apiKey: thisConfig.apiKey, ...commonPayloadOpts })
-	}
-	else if (providerName === 'moonshot') {
-		const thisConfig = settingsOfProvider[providerName]
-		return new OpenAI({ baseURL: 'https://api.moonshot.cn/v1', apiKey: thisConfig.apiKey, ...commonPayloadOpts })
-	}
-	else if (providerName === 'nvidia') {
-		const thisConfig = settingsOfProvider[providerName]
-		return new OpenAI({
-			baseURL: 'https://integrate.api.nvidia.com/v1',
-			apiKey: thisConfig.apiKey,
-			defaultHeaders: {
-				'Accept': 'application/json, text/event-stream',
-			},
-			...commonPayloadOpts
-		})
-	}
-	else if (providerName === 'openAICompatible') {
-		const thisConfig = settingsOfProvider[providerName]
-		const headers = parseHeadersJSON(thisConfig.headersJSON)
-		return new OpenAI({ baseURL: thisConfig.endpoint, apiKey: thisConfig.apiKey, defaultHeaders: headers, ...commonPayloadOpts })
-	}
-	else if (providerName === 'groq') {
-		const thisConfig = settingsOfProvider[providerName]
-		return new OpenAI({ baseURL: 'https://api.groq.com/openai/v1', apiKey: thisConfig.apiKey, ...commonPayloadOpts })
-	}
-	else if (providerName === 'xAI') {
-		const thisConfig = settingsOfProvider[providerName]
-		return new OpenAI({ baseURL: 'https://api.x.ai/v1', apiKey: thisConfig.apiKey, ...commonPayloadOpts })
-	}
-	else if (providerName === 'mistral') {
-		const thisConfig = settingsOfProvider[providerName]
-		return new OpenAI({ baseURL: 'https://api.mistral.ai/v1', apiKey: thisConfig.apiKey, ...commonPayloadOpts })
-	}
-	else if (providerName === 'llamaServer') {
-		const thisConfig = settingsOfProvider[providerName]
-		let baseURL = thisConfig.endpoint;
-		if (baseURL.includes('127.0.0.1') || baseURL.includes('localhost')) {
-			baseURL = `http://127.0.0.1:${activeLlamaServerPort}`;
-		}
-		return new OpenAI({ baseURL: `${baseURL}/v1`, apiKey: 'noop', ...commonPayloadOpts })
-	}
-
-	else throw new Error(`Void providerName was invalid: ${providerName}.`)
+    const commonPayloadOpts: ClientOptions = {
+        dangerouslyAllowBrowser: true,
+        ...includeInPayload,
+    }
+    if (providerName === 'openAI') {
+        const thisConfig = settingsOfProvider[providerName]
+        return new OpenAI({ apiKey: thisConfig.apiKey, ...commonPayloadOpts })
+    }
+    else if (providerName === 'ollama') {
+        const thisConfig = settingsOfProvider[providerName]
+        return new OpenAI({ baseURL: `${thisConfig.endpoint}/v1`, apiKey: 'noop', ...commonPayloadOpts })
+    }
+    else if (providerName === 'vLLM') {
+        const thisConfig = settingsOfProvider[providerName]
+        return new OpenAI({ baseURL: `${thisConfig.endpoint}/v1`, apiKey: 'noop', ...commonPayloadOpts })
+    }
+    else if (providerName === 'liteLLM') {
+        const thisConfig = settingsOfProvider[providerName]
+        return new OpenAI({ baseURL: `${thisConfig.endpoint}/v1`, apiKey: 'noop', ...commonPayloadOpts })
+    }
+    else if (providerName === 'lmStudio') {
+        const thisConfig = settingsOfProvider[providerName]
+        return new OpenAI({ baseURL: `${thisConfig.endpoint}/v1`, apiKey: 'noop', ...commonPayloadOpts })
+    }
+    else if (providerName === 'openRouter') {
+        const thisConfig = settingsOfProvider[providerName]
+        return new OpenAI({
+            baseURL: 'https://openrouter.ai/api/v1',
+            apiKey: thisConfig.apiKey,
+            defaultHeaders: {
+                'HTTP-Referer': 'https://neuronal.ia.br/lumina',
+                'X-Title': 'Lumina',
+            },
+            ...commonPayloadOpts,
+        })
+    }
+    else if (providerName === 'googleVertex') {
+        const thisConfig = settingsOfProvider[providerName]
+        const baseURL = `https://${thisConfig.region}-aiplatform.googleapis.com/v1/projects/${thisConfig.project}/locations/${thisConfig.region}/endpoints/${'openapi'}`
+        const apiKey = await getGoogleApiKey()
+        return new OpenAI({ baseURL: baseURL, apiKey: apiKey, ...commonPayloadOpts })
+    }
+    else if (providerName === 'microsoftAzure') {
+        const thisConfig = settingsOfProvider[providerName]
+        const endpoint = `https://${thisConfig.project}.openai.azure.com/`;
+        const apiVersion = thisConfig.azureApiVersion ?? '2024-04-01-preview';
+        return new AzureOpenAI({ endpoint, apiKey: thisConfig.apiKey, apiVersion, dangerouslyAllowBrowser: (commonPayloadOpts as any).dangerouslyAllowBrowser } as any);
+    }
+    else if (providerName === 'awsBedrock') {
+        const { endpoint, apiKey } = settingsOfProvider.awsBedrock
+        let baseURL = endpoint || 'http://localhost:4000/v1'
+        if (!baseURL.endsWith('/v1'))
+            baseURL = baseURL.replace(/\/+$/, '') + '/v1'
+        return new OpenAI({ baseURL, apiKey, ...commonPayloadOpts })
+    }
+    else if (providerName === 'deepseek') {
+        const thisConfig = settingsOfProvider[providerName]
+        return new OpenAI({ baseURL: 'https://api.deepseek.com/v1', apiKey: thisConfig.apiKey, ...commonPayloadOpts })
+    }
+    else if (providerName === 'moonshot') {
+        const thisConfig = settingsOfProvider[providerName]
+        return new OpenAI({ baseURL: 'https://api.moonshot.cn/v1', apiKey: thisConfig.apiKey, ...commonPayloadOpts })
+    }
+    else if (providerName === 'nvidia') {
+        const thisConfig = settingsOfProvider[providerName]
+        return new OpenAI({
+            baseURL: 'https://integrate.api.nvidia.com/v1',
+            apiKey: thisConfig.apiKey,
+            defaultHeaders: {
+                'Accept': 'application/json, text/event-stream',
+            },
+            ...commonPayloadOpts
+        })
+    }
+    else if (providerName === 'openAICompatible') {
+        const thisConfig = settingsOfProvider[providerName]
+        const headers = parseHeadersJSON(thisConfig.headersJSON)
+        return new OpenAI({ baseURL: thisConfig.endpoint, apiKey: thisConfig.apiKey, defaultHeaders: headers, ...commonPayloadOpts })
+    }
+    else if (providerName === 'groq') {
+        const thisConfig = settingsOfProvider[providerName]
+        return new OpenAI({ baseURL: 'https://api.groq.com/openai/v1', apiKey: thisConfig.apiKey, ...commonPayloadOpts })
+    }
+    else if (providerName === 'xAI') {
+        const thisConfig = settingsOfProvider[providerName]
+        return new OpenAI({ baseURL: 'https://api.x.ai/v1', apiKey: thisConfig.apiKey, ...commonPayloadOpts })
+    }
+    else if (providerName === 'mistral') {
+        const thisConfig = settingsOfProvider[providerName]
+        return new OpenAI({ baseURL: 'https://api.mistral.ai/v1', apiKey: thisConfig.apiKey, ...commonPayloadOpts })
+    }
+    else if (providerName === 'llamaServer') {
+        const thisConfig = settingsOfProvider[providerName]
+        let baseURL = thisConfig.endpoint;
+        if (baseURL.includes('127.0.0.1') || baseURL.includes('localhost')) {
+            baseURL = `http://127.0.0.1:${activeLlamaServerPort}`;
+        }
+        return new OpenAI({ baseURL: `${baseURL}/v1`, apiKey: 'noop', ...commonPayloadOpts })
+    }
+    else throw new Error(`Void providerName was invalid: ${providerName}.`)
 }
-
 
 const _sendOpenAICompatibleFIM = async ({ messages: { prefix, suffix, stopTokens }, onFinalMessage, onError, settingsOfProvider, modelName: modelName_, _setAborter, providerName, overridesOfModel }: SendFIMParams_Internal) => {
+    const {
+        modelName,
+        supportsFIM,
+        additionalOpenAIPayload,
+    } = getModelCapabilities(providerName, modelName_, overridesOfModel)
 
-	const {
-		modelName,
-		supportsFIM,
-		additionalOpenAIPayload,
-	} = getModelCapabilities(providerName, modelName_, overridesOfModel)
+    if (!supportsFIM) {
+        if (modelName === modelName_)
+            onError({ message: `Model ${modelName} does not support FIM.`, fullError: null })
+        else
+            onError({ message: `Model ${modelName_} (${modelName}) does not support FIM.`, fullError: null })
+        return
+    }
 
-	if (!supportsFIM) {
-		if (modelName === modelName_)
-			onError({ message: `Model ${modelName} does not support FIM.`, fullError: null })
-		else
-			onError({ message: `Model ${modelName_} (${modelName}) does not support FIM.`, fullError: null })
-		return
-	}
-
-	const openai = await newOpenAICompatibleSDK({ providerName, settingsOfProvider, includeInPayload: additionalOpenAIPayload })
-	openai.completions
-		.create({
-			model: modelName,
-			prompt: prefix,
-			suffix: suffix,
-			stop: stopTokens,
-			max_tokens: 4096,
-		})
-		.then(async response => {
-			const fullText = response.choices[0]?.text
-			onFinalMessage({ fullText, fullReasoning: '', anthropicReasoning: null });
-		})
-		.catch(error => {
-			if (error instanceof OpenAI.APIError && error.status === 401) { onError({ message: invalidApiKeyMessage(providerName), fullError: error }); }
-			else { onError({ message: error + '', fullError: error }); }
-		})
+    const openai = await newOpenAICompatibleSDK({ providerName, settingsOfProvider, includeInPayload: additionalOpenAIPayload })
+    openai.completions
+        .create({
+            model: modelName,
+            prompt: prefix,
+            suffix: suffix,
+            stop: stopTokens,
+            max_tokens: 8192,
+        })
+        .then(async response => {
+            const fullText = response.choices[0]?.text
+            onFinalMessage({ fullText, fullReasoning: '', anthropicReasoning: null });
+        })
+        .catch(error => {
+            if (error instanceof OpenAI.APIError && error.status === 401) { onError({ message: invalidApiKeyMessage(providerName), fullError: error }); }
+            else { onError({ message: error + '', fullError: error }); }
+        })
 }
 
-
 const toOpenAICompatibleTool = (toolInfo: InternalToolInfo) => {
-	const { name, description, params } = toolInfo
+    const { name, description, params } = toolInfo
+    const paramsWithType: { [s: string]: { description: string; type: 'string' } } = {}
+    const required: string[] = []
+    for (const key in params) {
+        paramsWithType[key] = { ...params[key], type: 'string' }
+        const desc = params[key]?.description || ''
+        if (!desc.startsWith('Optional.') && !desc.startsWith('Optional')) {
+            required.push(key)
+        }
+    }
 
-	const paramsWithType: { [s: string]: { description: string; type: 'string' } } = {}
-	const required: string[] = []
-	for (const key in params) {
-		paramsWithType[key] = { ...params[key], type: 'string' }
-		const desc = params[key]?.description || ''
-		if (!desc.startsWith('Optional.') && !desc.startsWith('Optional')) {
-			required.push(key)
-		}
-	}
-
-	return {
-		type: 'function',
-		function: {
-			name: name,
-			// strict: true, // strict mode - https://platform.openai.com/docs/guides/function-calling?api-mode=chat
-			description: description,
-			parameters: {
-				type: 'object',
-				properties: paramsWithType,
-				...(required.length > 0 ? { required } : {}),
-			},
-		}
-	} satisfies OpenAI.Chat.Completions.ChatCompletionTool
+    return {
+        type: 'function',
+        function: {
+            name: name,
+            description: description,
+            parameters: {
+                type: 'object',
+                properties: paramsWithType,
+                ...(required.length > 0 ? { required } : {}),
+            },
+        }
+    } satisfies OpenAI.Chat.Completions.ChatCompletionTool
 }
 
 const openAITools = (chatMode: ChatMode | null, mcpTools: InternalToolInfo[] | undefined) => {
-	const allowedTools = availableTools(chatMode, mcpTools)
-	if (!allowedTools || Object.keys(allowedTools).length === 0) return null
+    const allowedTools = availableTools(chatMode, mcpTools)
+    if (!allowedTools || Object.keys(allowedTools).length === 0) return null
 
-	const openAITools: OpenAI.Chat.Completions.ChatCompletionTool[] = []
-	for (const t in allowedTools ?? {}) {
-		openAITools.push(toOpenAICompatibleTool(allowedTools[t]))
-	}
-	return openAITools
+    const openAITools: OpenAI.Chat.Completions.ChatCompletionTool[] = []
+    for (const t in allowedTools ?? {}) {
+        openAITools.push(toOpenAICompatibleTool(allowedTools[t]))
+    }
+    return openAITools
 }
 
-
-// convert LLM tool call to our tool format
 const rawToolCallObjOfParamsStr = (name: string, toolParamsStr: string, id: string): RawToolCallObj | null => {
-	let input: unknown
-	try { input = JSON.parse(toolParamsStr) }
-	catch (e) { return null }
+    let input: unknown
+    try { input = JSON.parse(toolParamsStr) }
+    catch (e) { return null }
 
-	if (input === null) return null
-	if (typeof input !== 'object') return null
+    if (input === null) return null
+    if (typeof input !== 'object') return null
 
-	const rawParams: RawToolParamsObj = input
-	return { id, name, rawParams, doneParams: Object.keys(rawParams), isDone: true }
+    const rawParams: RawToolParamsObj = input
+    return { id, name, rawParams, doneParams: Object.keys(rawParams), isDone: true }
 }
-
 
 const rawToolCallObjOfAnthropicParams = (toolBlock: Anthropic.Messages.ToolUseBlock): RawToolCallObj | null => {
-	const { id, name, input } = toolBlock
+    const { id, name, input } = toolBlock
 
-	if (input === null) return null
-	if (typeof input !== 'object') return null
+    if (input === null) return null
+    if (typeof input !== 'object') return null
 
-	const rawParams: RawToolParamsObj = input
-	return { id, name, rawParams, doneParams: Object.keys(rawParams), isDone: true }
+    const rawParams: RawToolParamsObj = input
+    return { id, name, rawParams, doneParams: Object.keys(rawParams), isDone: true }
 }
-
 
 // ------------ OPENAI-COMPATIBLE ------------
 
-
 const _sendOpenAICompatibleChat = async ({ messages, onText, onFinalMessage, onError, settingsOfProvider, modelSelectionOptions, modelName: modelName_, _setAborter, providerName, chatMode, separateSystemMessage, overridesOfModel, mcpTools }: SendChatParams_Internal) => {
-	const {
-		modelName,
-		specialToolFormat,
-		reasoningCapabilities,
-		additionalOpenAIPayload,
-	} = getModelCapabilities(providerName, modelName_, overridesOfModel)
+    const {
+        modelName,
+        specialToolFormat,
+        reasoningCapabilities,
+        additionalOpenAIPayload,
+    } = getModelCapabilities(providerName, modelName_, overridesOfModel)
 
-	const { providerReasoningIOSettings } = getProviderCapabilities(providerName)
+    const { providerReasoningIOSettings } = getProviderCapabilities(providerName)
 
-	// reasoning
-	const { canIOReasoning, openSourceThinkTags } = reasoningCapabilities || {}
-	const reasoningInfo = getSendableReasoningInfo('Chat', providerName, modelName_, modelSelectionOptions, overridesOfModel) // user's modelName_ here
+    // reasoning
+    const { canIOReasoning, openSourceThinkTags } = reasoningCapabilities || {}
+    const reasoningInfo = getSendableReasoningInfo('Chat', providerName, modelName_, modelSelectionOptions, overridesOfModel)
 
-	const includeInPayload = {
-		...providerReasoningIOSettings?.input?.includeInPayload?.(reasoningInfo),
-		...additionalOpenAIPayload
-	}
+    const includeInPayload = {
+        ...providerReasoningIOSettings?.input?.includeInPayload?.(reasoningInfo),
+        ...additionalOpenAIPayload
+    }
 
-	// tools
-	const potentialTools = openAITools(chatMode, mcpTools)
-	const nativeToolsObj = potentialTools && (specialToolFormat === 'openai-style' || specialToolFormat === undefined) ?
-		{ tools: potentialTools } as const
-		: {}
+    // tools
+    const potentialTools = openAITools(chatMode, mcpTools)
+    const nativeToolsObj = potentialTools && (specialToolFormat === 'openai-style' || specialToolFormat === undefined) ?
+        { tools: potentialTools } as const
+        : {}
 
-	// instance
-	const openai: OpenAI = await newOpenAICompatibleSDK({ providerName, settingsOfProvider, includeInPayload })
-	if (providerName === 'microsoftAzure') {
-		// Required to select the model
-		(openai as AzureOpenAI).deploymentName = modelName;
-	}
-	const options: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming = {
-		model: modelName,
-		messages: messages as any,
-		stream: true,
-		...nativeToolsObj,
-		...additionalOpenAIPayload
-		// max_completion_tokens: maxTokens,
-	}
+    // instance
+    const openai: OpenAI = await newOpenAICompatibleSDK({ providerName, settingsOfProvider, includeInPayload })
+    if (providerName === 'microsoftAzure') {
+        (openai as AzureOpenAI).deploymentName = modelName;
+    }
 
-	// repetition penalty for local providers (ollama, vLLM, lmStudio, llamaServer) and model overrides
-	const thisLocalConfig = (settingsOfProvider as any)[providerName];
-	const configuredRepeatPenalty = overridesOfModel?.llamaServer?.penalties?.repeatPenalty ?? thisLocalConfig?.repeatPenalty;
-	if (configuredRepeatPenalty !== undefined && configuredRepeatPenalty !== '') {
-		const penalty = typeof configuredRepeatPenalty === 'number' ? configuredRepeatPenalty : parseFloat(configuredRepeatPenalty);
-		if (!isNaN(penalty) && penalty > 0) {
-			(options as any).repeat_penalty = penalty;
-			(options as any).repetition_penalty = penalty;
-			if (penalty > 1.0) {
-				const freqPenalty = Math.min(2.0, Number(((penalty - 1.0) * 2.0).toFixed(2)));
-				options.frequency_penalty = options.frequency_penalty ?? freqPenalty;
-			}
-			if (providerName === 'ollama') {
-				(options as any).options = {
-					...((options as any).options || {}),
-					repeat_penalty: penalty,
-				};
-			}
-		}
-	}
+    const options: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming = {
+        model: modelName,
+        messages: messages as any,
+        stream: true,
+        max_completion_tokens: 8192, // Garante espaço seguro para modelos de thinking em qualquer API compatível
+        ...nativeToolsObj,
+        ...additionalOpenAIPayload
+    }
 
-	if (providerName === 'llamaServer') {
-		const thisConfig = settingsOfProvider[providerName];
+    // repetition penalty for local providers (ollama, vLLM, lmStudio, llamaServer) and model overrides
+    const thisLocalConfig = (settingsOfProvider as any)[providerName];
+    const configuredRepeatPenalty = overridesOfModel?.llamaServer?.penalties?.repeatPenalty ?? thisLocalConfig?.repeatPenalty;
+    if (configuredRepeatPenalty !== undefined && configuredRepeatPenalty !== '') {
+        const penalty = typeof configuredRepeatPenalty === 'number' ? configuredRepeatPenalty : parseFloat(configuredRepeatPenalty);
+        if (!isNaN(penalty) && penalty > 0) {
+            (options as any).repeat_penalty = penalty;
+            (options as any).repetition_penalty = penalty;
+            if (penalty > 1.0) {
+                const freqPenalty = Math.min(2.0, Number(((penalty - 1.0) * 2.0).toFixed(2)));
+                options.frequency_penalty = options.frequency_penalty ?? freqPenalty;
+            }
+            if (providerName === 'ollama') {
+                (options as any).options = {
+                    ...((options as any).options || {}),
+                    repeat_penalty: penalty,
+                };
+            }
+        }
+    }
 
-		const temp = parseFloat(thisConfig.temperature);
-		options.temperature = !isNaN(temp) ? temp : 0.1;
+    // Configurações exclusivas e isoladas estritamente para o llamaServer local
+    if (providerName === 'llamaServer') {
+        const thisConfig = settingsOfProvider[providerName];
 
-		const maxTok = parseInt(thisConfig.maxTokens);
-		options.max_tokens = !isNaN(maxTok) ? maxTok : 4096;
+        const temp = parseFloat(thisConfig.temperature);
+        options.temperature = !isNaN(temp) ? temp : 0.1;
 
-		const repPen = parseFloat((thisConfig as any).repeatPenalty || '1.1');
-		if (!isNaN(repPen)) {
-			(options as any).repeat_penalty = repPen;
-		}
+        const maxTok = parseInt(thisConfig.maxTokens);
+        options.max_completion_tokens = !isNaN(maxTok) ? maxTok : 8192;
 
-		options.stop = [
-			'<|im_end|>',
-			'<|end_of_text|>',
-			'<|im_start|>',
-		];
+        const repPen = parseFloat((thisConfig as any).repeatPenalty || '1.1');
+        if (!isNaN(repPen)) {
+            (options as any).repeat_penalty = repPen;
+        }
 
-		const customSystemPrompt = thisConfig.systemPrompt;
-		if (customSystemPrompt) {
-			const messagesCopy = [...options.messages];
-			const systemMsgIndex = messagesCopy.findIndex(m => m.role === 'system');
-			if (systemMsgIndex !== -1) {
-				messagesCopy[systemMsgIndex] = {
-					...messagesCopy[systemMsgIndex],
-					content: messagesCopy[systemMsgIndex].content + "\n\n" + customSystemPrompt
-				};
-			} else {
-				messagesCopy.unshift({ role: 'system', content: customSystemPrompt });
-			}
-			options.messages = messagesCopy as any;
-		}
-	}
+        options.stop = [
+            '<|im_end|>',
+            '<|end_of_text|>',
+            '<|im_start|>',
+        ];
 
-	// open source models - manually parse think tokens
-	const { needsManualParse: needsManualReasoningParse, nameOfFieldInDelta: nameOfReasoningFieldInDelta } = providerReasoningIOSettings?.output ?? {}
-	const manuallyParseReasoning = needsManualReasoningParse && canIOReasoning && openSourceThinkTags
-	if (manuallyParseReasoning) {
-		const { newOnText, newOnFinalMessage } = extractReasoningWrapper(onText, onFinalMessage, openSourceThinkTags)
-		onText = newOnText
-		onFinalMessage = newOnFinalMessage
-	}
+        const customSystemPrompt = thisConfig.systemPrompt;
+        if (customSystemPrompt) {
+            const messagesCopy = [...options.messages];
+            const systemMsgIndex = messagesCopy.findIndex(m => m.role === 'system');
+            if (systemMsgIndex !== -1) {
+                messagesCopy[systemMsgIndex] = {
+                    ...messagesCopy[systemMsgIndex],
+                    content: messagesCopy[systemMsgIndex].content + "\n\n" + customSystemPrompt
+                };
+            } else {
+                messagesCopy.unshift({ role: 'system', content: customSystemPrompt });
+            }
+            options.messages = messagesCopy as any;
+        }
+    }
 
-	// manually parse out tool results if XML
-	if (!specialToolFormat) {
-		const { newOnText, newOnFinalMessage } = extractXMLToolsWrapper(onText, onFinalMessage, chatMode, mcpTools)
-		onText = newOnText
-		onFinalMessage = newOnFinalMessage
-	}
+    // open source models - manually parse think tokens
+    const { needsManualParse: needsManualReasoningParse, nameOfFieldInDelta: nameOfReasoningFieldInDelta } = providerReasoningIOSettings?.output ?? {}
+    const manuallyParseReasoning = needsManualReasoningParse && canIOReasoning && openSourceThinkTags
+    if (manuallyParseReasoning) {
+        const { newOnText, newOnFinalMessage } = extractReasoningWrapper(onText, onFinalMessage, openSourceThinkTags)
+        onText = newOnText
+        onFinalMessage = newOnFinalMessage
+    }
 
-	let fullReasoningSoFar = ''
-	let fullTextSoFar = ''
+    // manually parse out tool results if XML
+    if (!specialToolFormat) {
+        const { newOnText, newOnFinalMessage } = extractXMLToolsWrapper(onText, onFinalMessage, chatMode, mcpTools)
+        onText = newOnText
+        onFinalMessage = newOnFinalMessage
+    }
 
-	let toolName = ''
-	let toolId = ''
-	let toolParamsStr = ''
+    let fullReasoningSoFar = ''
+    let fullTextSoFar = ''
 
-	openai.chat.completions
-		.create(options)
-		.then(async response => {
-			_setAborter(() => response.controller.abort())
-			// when receive text
-			for await (const chunk of response) {
-				// message
-				const newText = chunk.choices[0]?.delta?.content ?? ''
-				fullTextSoFar += newText
+    let toolName = ''
+    let toolId = ''
+    let toolParamsStr = ''
 
-				// tool call
-				for (const tool of chunk.choices[0]?.delta?.tool_calls ?? []) {
-					const index = tool.index
-					if (index !== 0) continue
+    openai.chat.completions
+        .create(options)
+        .then(async response => {
+            _setAborter(() => response.controller.abort())
+            for await (const chunk of response) {
+                const newText = chunk.choices[0]?.delta?.content ?? ''
+                fullTextSoFar += newText
 
-					toolName += tool.function?.name ?? ''
-					toolParamsStr += tool.function?.arguments ?? '';
-					toolId += tool.id ?? ''
-				}
+                for (const tool of chunk.choices[0]?.delta?.tool_calls ?? []) {
+                    const index = tool.index
+                    if (index !== 0) continue
 
+                    toolName += tool.function?.name ?? ''
+                    toolParamsStr += tool.function?.arguments ?? '';
+                    toolId += tool.id ?? ''
+                }
 
-				// reasoning
-				let newReasoning = ''
-				if (nameOfReasoningFieldInDelta) {
-					// @ts-ignore
-					newReasoning = (chunk.choices[0]?.delta?.[nameOfReasoningFieldInDelta] || '') + ''
-					fullReasoningSoFar += newReasoning
-				}
+                let newReasoning = ''
+                if (nameOfReasoningFieldInDelta) {
+                    // @ts-ignore
+                    newReasoning = (chunk.choices[0]?.delta?.[nameOfReasoningFieldInDelta] || '') + ''
+                    fullReasoningSoFar += newReasoning
+                }
 
-				// call onText
-				onText({
-					fullText: fullTextSoFar,
-					fullReasoning: fullReasoningSoFar,
-					toolCall: !toolName ? undefined : { name: toolName, rawParams: {}, isDone: false, doneParams: [], id: toolId },
-				})
+                onText({
+                    fullText: fullTextSoFar,
+                    fullReasoning: fullReasoningSoFar,
+                    toolCall: !toolName ? undefined : { name: toolName, rawParams: {}, isDone: false, doneParams: [], id: toolId },
+                })
+            }
 
-			}
-			// on final
-			if (!fullTextSoFar && !fullReasoningSoFar && !toolName) {
-				onError({ message: 'Lumina: Response from model was empty.', fullError: null })
-			}
-			const toolCall = rawToolCallObjOfParamsStr(toolName, toolParamsStr, toolId)
-			const toolCallObj = toolCall ? { toolCall } : {}
-			onFinalMessage({ fullText: fullTextSoFar, fullReasoning: fullReasoningSoFar, anthropicReasoning: null, ...toolCallObj });
-		})
-		// when error/fail - this catches errors of both .create() and .then(for await)
-		.catch(error => {
-			if (error instanceof OpenAI.APIError && error.status === 401) { onError({ message: invalidApiKeyMessage(providerName), fullError: error }); }
-			else { onError({ message: error + '', fullError: error }); }
-		})
+            if (!fullTextSoFar && !fullReasoningSoFar && !toolName) {
+                onError({ message: 'Lumina: Response from model was empty.', fullError: null })
+            }
+            const toolCall = rawToolCallObjOfParamsStr(toolName, toolParamsStr, toolId)
+            const toolCallObj = toolCall ? { toolCall } : {}
+            onFinalMessage({ fullText: fullTextSoFar, fullReasoning: fullReasoningSoFar, anthropicReasoning: null, ...toolCallObj });
+        })
+        .catch(error => {
+            if (error instanceof OpenAI.APIError && error.status === 401) { onError({ message: invalidApiKeyMessage(providerName), fullError: error }); }
+            else { onError({ message: error + '', fullError: error }); }
+        })
 }
-
-
 
 type OpenAIModel = {
-	id: string;
-	created: number;
-	object: 'model';
-	owned_by: string;
+    id: string;
+    created: number;
+    object: 'model';
+    owned_by: string;
 }
 const _openaiCompatibleList = async ({ onSuccess: onSuccess_, onError: onError_, settingsOfProvider, providerName }: ListParams_Internal<OpenAIModel>) => {
-	const onSuccess = ({ models }: { models: OpenAIModel[] }) => {
-		onSuccess_({ models })
-	}
-	const onError = ({ error }: { error: string }) => {
-		onError_({ error })
-	}
-	try {
-		const openai = await newOpenAICompatibleSDK({ providerName, settingsOfProvider })
-		openai.models.list()
-			.then(async (response) => {
-				const models: OpenAIModel[] = []
-				if (Array.isArray(response?.data)) {
-					models.push(...response.data)
-				}
-				if (typeof (response as any)?.hasNextPage === 'function') {
-					while ((response as any).hasNextPage()) {
-						const next = await (response as any).getNextPage()
-						if (Array.isArray(next?.data)) {
-							models.push(...next.data)
-						}
-					}
-				}
-				onSuccess({ models })
-			})
-			.catch((error) => {
-				onError({ error: error + '' })
-			})
-	}
-	catch (error) {
-		onError({ error: error + '' })
-	}
+    const onSuccess = ({ models }: { models: OpenAIModel[] }) => {
+        onSuccess_({ models })
+    }
+    const onError = ({ error }: { error: string }) => {
+        onError_({ error })
+    }
+    try {
+        const openai = await newOpenAICompatibleSDK({ providerName, settingsOfProvider })
+        openai.models.list()
+            .then(async (response) => {
+                const models: OpenAIModel[] = []
+                if (Array.isArray(response?.data)) {
+                    models.push(...response.data)
+                }
+                if (typeof (response as any)?.hasNextPage === 'function') {
+                    while ((response as any).hasNextPage()) {
+                        const next = await (response as any).getNextPage()
+                        if (Array.isArray(next?.data)) {
+                            models.push(...next.data)
+                        }
+                    }
+                }
+                onSuccess({ models })
+            })
+            .catch((error) => {
+                onError({ error: error + '' })
+            })
+    }
+    catch (error) {
+        onError({ error: error + '' })
+    }
 }
-
-
-
 
 // ------------ ANTHROPIC (HELPERS) ------------
 const toAnthropicTool = (toolInfo: InternalToolInfo) => {
-	const { name, description, params } = toolInfo
-	const paramsWithType: { [s: string]: { description: string; type: 'string' } } = {}
-	const required: string[] = []
-	for (const key in params) {
-		paramsWithType[key] = { ...params[key], type: 'string' }
-		const desc = params[key]?.description || ''
-		if (!desc.startsWith('Optional.') && !desc.startsWith('Optional')) {
-			required.push(key)
-		}
-	}
-	return {
-		name: name,
-		description: description,
-		input_schema: {
-			type: 'object',
-			properties: paramsWithType,
-			...(required.length > 0 ? { required } : {}),
-		},
-	} satisfies Anthropic.Messages.Tool
+    const { name, description, params } = toolInfo
+    const paramsWithType: { [s: string]: { description: string; type: 'string' } } = {}
+    const required: string[] = []
+    for (const key in params) {
+        paramsWithType[key] = { ...params[key], type: 'string' }
+        const desc = params[key]?.description || ''
+        if (!desc.startsWith('Optional.') && !desc.startsWith('Optional')) {
+            required.push(key)
+        }
+    }
+    return {
+        name: name,
+        description: description,
+        input_schema: {
+            type: 'object',
+            properties: paramsWithType,
+            ...(required.length > 0 ? { required } : {}),
+        },
+    } satisfies Anthropic.Messages.Tool
 }
 
 const anthropicTools = (chatMode: ChatMode | null, mcpTools: InternalToolInfo[] | undefined) => {
-	const allowedTools = availableTools(chatMode, mcpTools)
-	if (!allowedTools || Object.keys(allowedTools).length === 0) return null
+    const allowedTools = availableTools(chatMode, mcpTools)
+    if (!allowedTools || Object.keys(allowedTools).length === 0) return null
 
-	const anthropicTools: Anthropic.Messages.ToolUnion[] = []
-	for (const t in allowedTools ?? {}) {
-		anthropicTools.push(toAnthropicTool(allowedTools[t]))
-	}
-	return anthropicTools
+    const anthropicTools: Anthropic.Messages.ToolUnion[] = []
+    for (const t in allowedTools ?? {}) {
+        anthropicTools.push(toAnthropicTool(allowedTools[t]))
+    }
+    return anthropicTools
 }
-
-
 
 // ------------ ANTHROPIC ------------
 const sendAnthropicChat = async ({ messages, providerName, onText, onFinalMessage, onError, settingsOfProvider, modelSelectionOptions, overridesOfModel, modelName: modelName_, _setAborter, separateSystemMessage, chatMode, mcpTools }: SendChatParams_Internal) => {
-	const {
-		modelName,
-		specialToolFormat,
-	} = getModelCapabilities(providerName, modelName_, overridesOfModel)
+    const {
+        modelName,
+        specialToolFormat,
+    } = getModelCapabilities(providerName, modelName_, overridesOfModel)
 
-	const thisConfig = settingsOfProvider.anthropic
-	const { providerReasoningIOSettings } = getProviderCapabilities(providerName)
+    const thisConfig = settingsOfProvider.anthropic
+    const { providerReasoningIOSettings } = getProviderCapabilities(providerName)
 
-	// reasoning
-	const reasoningInfo = getSendableReasoningInfo('Chat', providerName, modelName_, modelSelectionOptions, overridesOfModel) // user's modelName_ here
-	const includeInPayload = providerReasoningIOSettings?.input?.includeInPayload?.(reasoningInfo) || {}
+    const reasoningInfo = getSendableReasoningInfo('Chat', providerName, modelName_, modelSelectionOptions, overridesOfModel)
+    const includeInPayload = providerReasoningIOSettings?.input?.includeInPayload?.(reasoningInfo) || {}
 
-	// anthropic-specific - max tokens
-	const maxTokens = getReservedOutputTokenSpace(providerName, modelName_, { isReasoningEnabled: !!reasoningInfo?.isReasoningEnabled, overridesOfModel })
+    const maxTokens = getReservedOutputTokenSpace(providerName, modelName_, { isReasoningEnabled: !!reasoningInfo?.isReasoningEnabled, overridesOfModel })
 
-	// tools
-	const potentialTools = anthropicTools(chatMode, mcpTools)
-	const nativeToolsObj = potentialTools && specialToolFormat === 'anthropic-style' ?
-		{ tools: potentialTools, tool_choice: { type: 'auto' } } as const
-		: {}
+    const potentialTools = anthropicTools(chatMode, mcpTools)
+    const nativeToolsObj = potentialTools && specialToolFormat === 'anthropic-style' ?
+        { tools: potentialTools, tool_choice: { type: 'auto' } } as const
+        : {}
 
+    const anthropic = new Anthropic({
+        apiKey: thisConfig.apiKey,
+        dangerouslyAllowBrowser: true
+    });
 
-	// instance
-	const anthropic = new Anthropic({
-		apiKey: thisConfig.apiKey,
-		dangerouslyAllowBrowser: true
-	});
+    const stream = anthropic.messages.stream({
+        system: separateSystemMessage ?? undefined,
+        messages: messages as AnthropicLLMChatMessage[],
+        model: modelName,
+        max_tokens: maxTokens ?? 8_192,
+        ...includeInPayload,
+        ...nativeToolsObj,
+    })
 
-	const stream = anthropic.messages.stream({
-		system: separateSystemMessage ?? undefined,
-		messages: messages as AnthropicLLMChatMessage[],
-		model: modelName,
-		max_tokens: maxTokens ?? 4_096, // anthropic requires this
-		...includeInPayload,
-		...nativeToolsObj,
+    if (!specialToolFormat) {
+        const { newOnText, newOnFinalMessage } = extractXMLToolsWrapper(onText, onFinalMessage, chatMode, mcpTools)
+        onText = newOnText
+        onFinalMessage = newOnFinalMessage
+    }
 
-	})
+    let fullText = ''
+    let fullReasoning = ''
+    let fullToolName = ''
+    let fullToolParams = ''
 
-	// manually parse out tool results if XML
-	if (!specialToolFormat) {
-		const { newOnText, newOnFinalMessage } = extractXMLToolsWrapper(onText, onFinalMessage, chatMode, mcpTools)
-		onText = newOnText
-		onFinalMessage = newOnFinalMessage
-	}
+    const runOnText = () => {
+        onText({
+            fullText,
+            fullReasoning,
+            toolCall: !fullToolName ? undefined : { name: fullToolName, rawParams: {}, isDone: false, doneParams: [], id: 'dummy' },
+        })
+    }
 
-	// when receive text
-	let fullText = ''
-	let fullReasoning = ''
+    stream.on('streamEvent', e => {
+        if (e.type === 'content_block_start') {
+            if (e.content_block.type === 'text') {
+                if (fullText) fullText += '\n\n'
+                fullText += e.content_block.text
+                runOnText()
+            }
+            else if (e.content_block.type === 'thinking') {
+                if (fullReasoning) fullReasoning += '\n\n'
+                fullReasoning += e.content_block.thinking
+                runOnText()
+            }
+            else if (e.content_block.type === 'redacted_thinking') {
+                if (fullReasoning) fullReasoning += '\n\n'
+                fullReasoning += '[redacted_thinking]'
+                runOnText()
+            }
+            else if (e.content_block.type === 'tool_use') {
+                fullToolName += e.content_block.name ?? ''
+                runOnText()
+            }
+        }
+        else if (e.type === 'content_block_delta') {
+            if (e.delta.type === 'text_delta') {
+                fullText += e.delta.text
+                runOnText()
+            }
+            else if (e.delta.type === 'thinking_delta') {
+                fullReasoning += e.delta.thinking
+                runOnText()
+            }
+            else if (e.delta.type === 'input_json_delta') {
+                fullToolParams += e.delta.partial_json ?? ''
+                runOnText()
+            }
+        }
+    })
 
-	let fullToolName = ''
-	let fullToolParams = ''
+    stream.on('finalMessage', (response) => {
+        const anthropicReasoning = response.content.filter(c => c.type === 'thinking' || c.type === 'redacted_thinking')
+        const tools = response.content.filter(c => c.type === 'tool_use')
+        const toolCall = tools[0] && rawToolCallObjOfAnthropicParams(tools[0])
+        const toolCallObj = toolCall ? { toolCall } : {}
 
+        onFinalMessage({ fullText, fullReasoning, anthropicReasoning, ...toolCallObj })
+    })
 
-	const runOnText = () => {
-		onText({
-			fullText,
-			fullReasoning,
-			toolCall: !fullToolName ? undefined : { name: fullToolName, rawParams: {}, isDone: false, doneParams: [], id: 'dummy' },
-		})
-	}
-	// there are no events for tool_use, it comes in at the end
-	stream.on('streamEvent', e => {
-		// start block
-		if (e.type === 'content_block_start') {
-			if (e.content_block.type === 'text') {
-				if (fullText) fullText += '\n\n' // starting a 2nd text block
-				fullText += e.content_block.text
-				runOnText()
-			}
-			else if (e.content_block.type === 'thinking') {
-				if (fullReasoning) fullReasoning += '\n\n' // starting a 2nd reasoning block
-				fullReasoning += e.content_block.thinking
-				runOnText()
-			}
-			else if (e.content_block.type === 'redacted_thinking') {
-				console.log('delta', e.content_block.type)
-				if (fullReasoning) fullReasoning += '\n\n' // starting a 2nd reasoning block
-				fullReasoning += '[redacted_thinking]'
-				runOnText()
-			}
-			else if (e.content_block.type === 'tool_use') {
-				fullToolName += e.content_block.name ?? '' // anthropic gives us the tool name in the start block
-				runOnText()
-			}
-		}
-
-		// delta
-		else if (e.type === 'content_block_delta') {
-			if (e.delta.type === 'text_delta') {
-				fullText += e.delta.text
-				runOnText()
-			}
-			else if (e.delta.type === 'thinking_delta') {
-				fullReasoning += e.delta.thinking
-				runOnText()
-			}
-			else if (e.delta.type === 'input_json_delta') { // tool use
-				fullToolParams += e.delta.partial_json ?? '' // anthropic gives us the partial delta (string) here - https://docs.anthropic.com/en/api/messages-streaming
-				runOnText()
-			}
-		}
-	})
-
-	// on done - (or when error/fail) - this is called AFTER last streamEvent
-	stream.on('finalMessage', (response) => {
-		const anthropicReasoning = response.content.filter(c => c.type === 'thinking' || c.type === 'redacted_thinking')
-		const tools = response.content.filter(c => c.type === 'tool_use')
-		// console.log('TOOLS!!!!!!', JSON.stringify(tools, null, 2))
-		// console.log('TOOLS!!!!!!', JSON.stringify(response, null, 2))
-		const toolCall = tools[0] && rawToolCallObjOfAnthropicParams(tools[0])
-		const toolCallObj = toolCall ? { toolCall } : {}
-
-		onFinalMessage({ fullText, fullReasoning, anthropicReasoning, ...toolCallObj })
-	})
-	// on error
-	stream.on('error', (error) => {
-		if (error instanceof Anthropic.APIError && error.status === 401) { onError({ message: invalidApiKeyMessage(providerName), fullError: error }) }
-		else { onError({ message: error + '', fullError: error }) }
-	})
-	_setAborter(() => stream.controller.abort())
+    stream.on('error', (error) => {
+        if (error instanceof Anthropic.APIError && error.status === 401) { onError({ message: invalidApiKeyMessage(providerName), fullError: error }) }
+        else { onError({ message: error + '', fullError: error }) }
+    })
+    _setAborter(() => stream.controller.abort())
 }
-
-
 
 // ------------ MISTRAL ------------
-// https://docs.mistral.ai/api/#tag/fim
 const sendMistralFIM = ({ messages, onFinalMessage, onError, settingsOfProvider, overridesOfModel, modelName: modelName_, _setAborter, providerName }: SendFIMParams_Internal) => {
-	const { modelName, supportsFIM } = getModelCapabilities(providerName, modelName_, overridesOfModel)
-	if (!supportsFIM) {
-		if (modelName === modelName_)
-			onError({ message: `Model ${modelName} does not support FIM.`, fullError: null })
-		else
-			onError({ message: `Model ${modelName_} (${modelName}) does not support FIM.`, fullError: null })
-		return
-	}
+    const { modelName, supportsFIM } = getModelCapabilities(providerName, modelName_, overridesOfModel)
+    if (!supportsFIM) {
+        if (modelName === modelName_)
+            onError({ message: `Model ${modelName} does not support FIM.`, fullError: null })
+        else
+            onError({ message: `Model ${modelName_} (${modelName}) does not support FIM.`, fullError: null })
+        return
+    }
 
-	const mistral = new MistralCore({ apiKey: settingsOfProvider.mistral.apiKey })
-	fimComplete(mistral,
-		{
-			model: modelName,
-			prompt: messages.prefix,
-			suffix: messages.suffix,
-			stream: false,
-			maxTokens: 4096,
-			stop: messages.stopTokens,
-		})
-		.then(async response => {
+    const mistral = new MistralCore({ apiKey: settingsOfProvider.mistral.apiKey })
+    fimComplete(mistral,
+        {
+            model: modelName,
+            prompt: messages.prefix,
+            suffix: messages.suffix,
+            stream: false,
+            maxTokens: 8192,
+            stop: messages.stopTokens,
+        })
+        .then(async response => {
+            let content = response?.ok ? response.value.choices?.[0]?.message?.content ?? '' : '';
+            const fullText = typeof content === 'string' ? content
+                : content.map(chunk => (chunk.type === 'text' ? chunk.text : '')).join('')
 
-			// unfortunately, _setAborter() does not exist
-			let content = response?.ok ? response.value.choices?.[0]?.message?.content ?? '' : '';
-			const fullText = typeof content === 'string' ? content
-				: content.map(chunk => (chunk.type === 'text' ? chunk.text : '')).join('')
-
-			onFinalMessage({ fullText, fullReasoning: '', anthropicReasoning: null });
-		})
-		.catch(error => {
-			onError({ message: error + '', fullError: error });
-		})
+            onFinalMessage({ fullText, fullReasoning: '', anthropicReasoning: null });
+        })
+        .catch(error => {
+            onError({ message: error + '', fullError: error });
+        })
 }
-
 
 // ------------ OLLAMA ------------
 const newOllamaSDK = ({ endpoint }: { endpoint: string }) => {
-	// if endpoint is empty, normally ollama will send to 11434, but we want it to fail - the user should type it in
-	if (!endpoint) throw new Error(`Ollama Endpoint was empty (please enter ${defaultProviderSettings.ollama.endpoint} in Lumina if you want the default url).`)
-	const ollama = new Ollama({ host: endpoint })
-	return ollama
+    if (!endpoint) throw new Error(`Ollama Endpoint was empty (please enter ${defaultProviderSettings.ollama.endpoint} in Lumina if you want the default url).`)
+    const ollama = new Ollama({ host: endpoint })
+    return ollama
 }
 
 const ollamaList = async ({ onSuccess: onSuccess_, onError: onError_, settingsOfProvider }: ListParams_Internal<OllamaModelResponse>) => {
-	const onSuccess = ({ models }: { models: OllamaModelResponse[] }) => {
-		onSuccess_({ models })
-	}
-	const onError = ({ error }: { error: string }) => {
-		onError_({ error })
-	}
-	try {
-		const thisConfig = settingsOfProvider.ollama
-		const ollama = newOllamaSDK({ endpoint: thisConfig.endpoint })
-		ollama.list()
-			.then((response) => {
-				const { models } = response
-				onSuccess({ models })
-			})
-			.catch((error) => {
-				onError({ error: error + '' })
-			})
-	}
-	catch (error) {
-		onError({ error: error + '' })
-	}
+    const onSuccess = ({ models }: { models: OllamaModelResponse[] }) => {
+        onSuccess_({ models })
+    }
+    const onError = ({ error }: { error: string }) => {
+        onError_({ error })
+    }
+    try {
+        const thisConfig = settingsOfProvider.ollama
+        const ollama = newOllamaSDK({ endpoint: thisConfig.endpoint })
+        ollama.list()
+            .then((response) => {
+                const { models } = response
+                onSuccess({ models })
+            })
+            .catch((error) => {
+                onError({ error: error + '' })
+            })
+    }
+    catch (error) {
+        onError({ error: error + '' })
+    }
 }
 
 const sendOllamaFIM = ({ messages, onFinalMessage, onError, settingsOfProvider, modelName, _setAborter }: SendFIMParams_Internal) => {
-	const thisConfig = settingsOfProvider.ollama
-	const ollama = newOllamaSDK({ endpoint: thisConfig.endpoint })
+    const thisConfig = settingsOfProvider.ollama
+    const ollama = newOllamaSDK({ endpoint: thisConfig.endpoint })
 
-	let fullText = ''
-	ollama.generate({
-		model: modelName,
-		prompt: messages.prefix,
-		suffix: messages.suffix,
-		options: {
-			stop: messages.stopTokens,
-			num_predict: 300, // max tokens
-			// repeat_penalty: 1,
-		},
-		raw: true,
-		stream: true, // stream is not necessary but lets us expose the
-	})
-		.then(async stream => {
-			_setAborter(() => stream.abort())
-			for await (const chunk of stream) {
-				const newText = chunk.response
-				fullText += newText
-			}
-			onFinalMessage({ fullText, fullReasoning: '', anthropicReasoning: null })
-		})
-		// when error/fail
-		.catch((error) => {
-			onError({ message: error + '', fullError: error })
-		})
+    let fullText = ''
+    ollama.generate({
+        model: modelName,
+        prompt: messages.prefix,
+        suffix: messages.suffix,
+        options: {
+            stop: messages.stopTokens,
+            num_predict: 8192,
+        },
+        raw: true,
+        stream: true,
+    })
+        .then(async stream => {
+            _setAborter(() => stream.abort())
+            for await (const chunk of stream) {
+                const newText = chunk.response
+                fullText += newText
+            }
+            onFinalMessage({ fullText, fullReasoning: '', anthropicReasoning: null })
+        })
+        .catch((error) => {
+            onError({ message: error + '', fullError: error })
+        })
 }
 
 // ---------------- GEMINI NATIVE IMPLEMENTATION ----------------
 
 const toGeminiFunctionDecl = (toolInfo: InternalToolInfo) => {
-	const { name, description, params } = toolInfo
-	const required: string[] = []
-	for (const key in params) {
-		const desc = params[key]?.description || ''
-		if (!desc.startsWith('Optional.') && !desc.startsWith('Optional')) {
-			required.push(key)
-		}
-	}
-	return {
-		name,
-		description,
-		parameters: {
-			type: Type.OBJECT,
-			properties: Object.entries(params).reduce((acc, [key, value]) => {
-				acc[key] = {
-					type: Type.STRING,
-					description: value.description
-				};
-				return acc;
-			}, {} as Record<string, Schema>),
-			...(required.length > 0 ? { required } : {}),
-		}
-	} satisfies FunctionDeclaration
+    const { name, description, params } = toolInfo
+    const required: string[] = []
+    for (const key in params) {
+        const desc = params[key]?.description || ''
+        if (!desc.startsWith('Optional.') && !desc.startsWith('Optional')) {
+            required.push(key)
+        }
+    }
+    return {
+        name,
+        description,
+        parameters: {
+            type: Type.OBJECT,
+            properties: Object.entries(params).reduce((acc, [key, value]) => {
+                acc[key] = {
+                    type: Type.STRING,
+                    description: value.description
+                };
+                return acc;
+            }, {} as Record<string, Schema>),
+            ...(required.length > 0 ? { required } : {}),
+        }
+    } satisfies FunctionDeclaration
 }
 
 const geminiTools = (chatMode: ChatMode | null, mcpTools: InternalToolInfo[] | undefined): GeminiTool[] | null => {
-	const allowedTools = availableTools(chatMode, mcpTools)
-	if (!allowedTools || Object.keys(allowedTools).length === 0) return null
-	const functionDecls: FunctionDeclaration[] = []
-	for (const t in allowedTools ?? {}) {
-		functionDecls.push(toGeminiFunctionDecl(allowedTools[t]))
-	}
-	const tools: GeminiTool = { functionDeclarations: functionDecls, }
-	return [tools]
+    const allowedTools = availableTools(chatMode, mcpTools)
+    if (!allowedTools || Object.keys(allowedTools).length === 0) return null
+    const functionDecls: FunctionDeclaration[] = []
+    for (const t in allowedTools ?? {}) {
+        functionDecls.push(toGeminiFunctionDecl(allowedTools[t]))
+    }
+    const tools: GeminiTool = { functionDeclarations: functionDecls, }
+    return [tools]
 }
 
-
-
-// Implementation for Gemini using Google's native API
 const sendGeminiChat = async ({
-	messages,
-	separateSystemMessage,
-	onText,
-	onFinalMessage,
-	onError,
-	settingsOfProvider,
-	overridesOfModel,
-	modelName: modelName_,
-	_setAborter,
-	providerName,
-	modelSelectionOptions,
-	chatMode,
-	mcpTools,
+    messages,
+    separateSystemMessage,
+    onText,
+    onFinalMessage,
+    onError,
+    settingsOfProvider,
+    overridesOfModel,
+    modelName: modelName_,
+    _setAborter,
+    providerName,
+    modelSelectionOptions,
+    chatMode,
+    mcpTools,
 }: SendChatParams_Internal) => {
 
-	if (providerName !== 'gemini') throw new Error(`Sending Gemini chat, but provider was ${providerName}`)
+    if (providerName !== 'gemini') throw new Error(`Sending Gemini chat, but provider was ${providerName}`)
 
-	const thisConfig = settingsOfProvider[providerName]
+    const thisConfig = settingsOfProvider[providerName]
 
-	const {
-		modelName,
-		specialToolFormat,
-		// reasoningCapabilities,
-	} = getModelCapabilities(providerName, modelName_, overridesOfModel)
+    const {
+        modelName,
+        specialToolFormat,
+    } = getModelCapabilities(providerName, modelName_, overridesOfModel)
 
-	// const { providerReasoningIOSettings } = getProviderCapabilities(providerName)
+    const reasoningInfo = getSendableReasoningInfo('Chat', providerName, modelName_, modelSelectionOptions, overridesOfModel)
 
-	// reasoning
-	// const { canIOReasoning, openSourceThinkTags, } = reasoningCapabilities || {}
-	const reasoningInfo = getSendableReasoningInfo('Chat', providerName, modelName_, modelSelectionOptions, overridesOfModel) // user's modelName_ here
-	// const includeInPayload = providerReasoningIOSettings?.input?.includeInPayload?.(reasoningInfo) || {}
+    const thinkingConfig: ThinkingConfig | undefined = !reasoningInfo?.isReasoningEnabled ? undefined
+        : reasoningInfo.type === 'budget_slider_value' ?
+            { thinkingBudget: reasoningInfo.reasoningBudget }
+            : undefined
 
-	const thinkingConfig: ThinkingConfig | undefined = !reasoningInfo?.isReasoningEnabled ? undefined
-		: reasoningInfo.type === 'budget_slider_value' ?
-			{ thinkingBudget: reasoningInfo.reasoningBudget }
-			: undefined
+    const potentialTools = geminiTools(chatMode, mcpTools)
+    const toolConfig = potentialTools && specialToolFormat === 'gemini-style' ?
+        potentialTools
+        : undefined
 
-	// tools
-	const potentialTools = geminiTools(chatMode, mcpTools)
-	const toolConfig = potentialTools && specialToolFormat === 'gemini-style' ?
-		potentialTools
-		: undefined
+    const genAI = new GoogleGenAI({ apiKey: thisConfig.apiKey });
 
-	// instance
-	const genAI = new GoogleGenAI({ apiKey: thisConfig.apiKey });
+    if (!specialToolFormat) {
+        const { newOnText, newOnFinalMessage } = extractXMLToolsWrapper(onText, onFinalMessage, chatMode, mcpTools)
+        onText = newOnText
+        onFinalMessage = newOnFinalMessage
+    }
 
+    let fullReasoningSoFar = ''
+    let fullTextSoFar = ''
 
-	// manually parse out tool results if XML
-	if (!specialToolFormat) {
-		const { newOnText, newOnFinalMessage } = extractXMLToolsWrapper(onText, onFinalMessage, chatMode, mcpTools)
-		onText = newOnText
-		onFinalMessage = newOnFinalMessage
-	}
+    let toolName = ''
+    let toolParamsStr = ''
+    let toolId = ''
 
-	// when receive text
-	let fullReasoningSoFar = ''
-	let fullTextSoFar = ''
+    genAI.models.generateContentStream({
+        model: modelName,
+        config: {
+            systemInstruction: separateSystemMessage,
+            thinkingConfig: thinkingConfig,
+            tools: toolConfig,
+        },
+        contents: messages as GeminiLLMChatMessage[],
+    })
+        .then(async (stream) => {
+            _setAborter(() => { stream.return(fullTextSoFar); });
 
-	let toolName = ''
-	let toolParamsStr = ''
-	let toolId = ''
+            for await (const chunk of stream) {
+                const candidate = chunk.candidates?.[0]
+                if (candidate?.content?.parts) {
+                    for (const part of candidate.content.parts) {
+                        if ((part as any).thought) {
+                            const thoughtText = part.text ?? ''
+                            fullReasoningSoFar += thoughtText
+                        }
+                    }
+                }
 
+                const newText = chunk.text ?? ''
+                fullTextSoFar += newText
 
-	genAI.models.generateContentStream({
-		model: modelName,
-		config: {
-			systemInstruction: separateSystemMessage,
-			thinkingConfig: thinkingConfig,
-			tools: toolConfig,
-		},
-		contents: messages as GeminiLLMChatMessage[],
-	})
-		.then(async (stream) => {
-			_setAborter(() => { stream.return(fullTextSoFar); });
+                const functionCalls = chunk.functionCalls
+                if (functionCalls && functionCalls.length > 0) {
+                    const functionCall = functionCalls[0]
+                    toolName = functionCall.name ?? ''
+                    toolParamsStr = JSON.stringify(functionCall.args ?? {})
+                    toolId = functionCall.id ?? ''
+                }
 
-			// Process the stream
-			for await (const chunk of stream) {
-				// extract thoughts if present in parts
-				const candidate = chunk.candidates?.[0]
-				if (candidate?.content?.parts) {
-					for (const part of candidate.content.parts) {
-						if ((part as any).thought) {
-							const thoughtText = part.text ?? ''
-							fullReasoningSoFar += thoughtText
-						}
-					}
-				}
+                onText({
+                    fullText: fullTextSoFar,
+                    fullReasoning: fullReasoningSoFar,
+                    toolCall: !toolName ? undefined : { name: toolName, rawParams: {}, isDone: false, doneParams: [], id: toolId },
+                })
+            }
 
-				// message
-				const newText = chunk.text ?? ''
-				fullTextSoFar += newText
-
-				// tool call
-				const functionCalls = chunk.functionCalls
-				if (functionCalls && functionCalls.length > 0) {
-					const functionCall = functionCalls[0] // Get the first function call
-					toolName = functionCall.name ?? ''
-					toolParamsStr = JSON.stringify(functionCall.args ?? {})
-					toolId = functionCall.id ?? ''
-				}
-
-				// call onText
-				onText({
-					fullText: fullTextSoFar,
-					fullReasoning: fullReasoningSoFar,
-					toolCall: !toolName ? undefined : { name: toolName, rawParams: {}, isDone: false, doneParams: [], id: toolId },
-				})
-			}
-
-			// on final
-			if (!fullTextSoFar && !fullReasoningSoFar && !toolName) {
-				onError({ message: 'Lumina: Response from model was empty.', fullError: null })
-			} else {
-				if (!toolId) toolId = generateUuid() // ids are empty, but other providers might expect an id
-				const toolCall = rawToolCallObjOfParamsStr(toolName, toolParamsStr, toolId)
-				const toolCallObj = toolCall ? { toolCall } : {}
-				onFinalMessage({ fullText: fullTextSoFar, fullReasoning: fullReasoningSoFar, anthropicReasoning: null, ...toolCallObj });
-			}
-		})
-		.catch(error => {
-			const message = error?.message
-			if (typeof message === 'string') {
-
-				if (error.message?.includes('API key')) {
-					onError({ message: invalidApiKeyMessage(providerName), fullError: error });
-				}
-				else if (error?.message?.includes('429')) {
-					onError({ message: 'Rate limit reached. ' + error, fullError: error });
-				}
-				else
-					onError({ message: error + '', fullError: error });
-			}
-			else {
-				onError({ message: error + '', fullError: error });
-			}
-		})
+            if (!fullTextSoFar && !fullReasoningSoFar && !toolName) {
+                onError({ message: 'Lumina: Response from model was empty.', fullError: null })
+            } else {
+                if (!toolId) toolId = generateUuid()
+                const toolCall = rawToolCallObjOfParamsStr(toolName, toolParamsStr, toolId)
+                const toolCallObj = toolCall ? { toolCall } : {}
+                onFinalMessage({ fullText: fullTextSoFar, fullReasoning: fullReasoningSoFar, anthropicReasoning: null, ...toolCallObj });
+            }
+        })
+        .catch(error => {
+            const message = error?.message
+            if (typeof message === 'string') {
+                if (error.message?.includes('API key')) {
+                    onError({ message: invalidApiKeyMessage(providerName), fullError: error });
+                }
+                else if (error?.message?.includes('429')) {
+                    onError({ message: 'Rate limit reached. ' + error, fullError: error });
+                }
+                else
+                    onError({ message: error + '', fullError: error });
+            }
+            else {
+                onError({ message: error + '', fullError: error });
+            }
+        })
 };
 
-
-
 const geminiList = async ({ onSuccess, onError, settingsOfProvider }: ListParams_Internal<OpenaiCompatibleModelResponse>) => {
-	try {
-		const apiKey = settingsOfProvider.gemini.apiKey
-		if (!apiKey) {
-			onError({ error: 'Chave de API do Gemini não configurada.' })
-			return
-		}
-		const genAI = new GoogleGenAI({ apiKey })
-		const response = await genAI.models.list()
-		const models: OpenaiCompatibleModelResponse[] = []
-		for await (const m of response) {
-			if (m.name) {
-				const id = m.name.replace(/^models\//, '')
-				models.push({ id, created: 0, object: 'model', owned_by: 'google' })
-			}
-		}
-		onSuccess({ models })
-	} catch (error) {
-		onError({ error: error + '' })
-	}
+    try {
+        const apiKey = settingsOfProvider.gemini.apiKey
+        if (!apiKey) {
+            onError({ error: 'Chave de API do Gemini não configurada.' })
+            return
+        }
+        const genAI = new GoogleGenAI({ apiKey })
+        const response = await genAI.models.list()
+        const models: OpenaiCompatibleModelResponse[] = []
+        for await (const m of response) {
+            if (m.name) {
+                const id = m.name.replace(/^models\//, '')
+                models.push({ id, created: 0, object: 'model', owned_by: 'google' })
+            }
+        }
+        onSuccess({ models })
+    } catch (error) {
+        onError({ error: error + '' })
+    }
 }
 
 const anthropicList = async ({ onSuccess, onError, settingsOfProvider }: ListParams_Internal<OpenaiCompatibleModelResponse>) => {
-	try {
-		const apiKey = settingsOfProvider.anthropic.apiKey
-		if (!apiKey) {
-			onError({ error: 'Chave de API da Anthropic não configurada.' })
-			return
-		}
-		const anthropic = new Anthropic({ apiKey })
-		const response = await anthropic.models.list()
-		const models: OpenaiCompatibleModelResponse[] = []
-		if (Array.isArray(response?.data)) {
-			for (const m of response.data) {
-				if (m.id) {
-					models.push({ id: m.id, created: 0, object: 'model', owned_by: 'anthropic' })
-				}
-			}
-		}
-		onSuccess({ models })
-	} catch (error) {
-		onError({ error: error + '' })
-	}
+    try {
+        const apiKey = settingsOfProvider.anthropic.apiKey
+        if (!apiKey) {
+            onError({ error: 'Chave de API da Anthropic não configurada.' })
+            return
+        }
+        const anthropic = new Anthropic({ apiKey })
+        const response = await anthropic.models.list()
+        const models: OpenaiCompatibleModelResponse[] = []
+        if (Array.isArray(response?.data)) {
+            for (const m of response.data) {
+                if (m.id) {
+                    models.push({ id: m.id, created: 0, object: 'model', owned_by: 'anthropic' })
+                }
+            }
+        }
+        onSuccess({ models })
+    } catch (error) {
+        onError({ error: error + '' })
+    }
 }
 
 type CallFnOfProvider = {
-	[providerName in ProviderName]: {
-		sendChat: (params: SendChatParams_Internal) => Promise<void>;
-		sendFIM: ((params: SendFIMParams_Internal) => void) | null;
-		list: ((params: ListParams_Internal<any>) => void) | null;
-	}
+    [providerName in ProviderName]: {
+        sendChat: (params: SendChatParams_Internal) => Promise<void>;
+        sendFIM: ((params: SendFIMParams_Internal) => void) | null;
+        list: ((params: ListParams_Internal<any>) => void) | null;
+    }
 }
 
 export const sendLLMMessageToProviderImplementation = {
-	anthropic: {
-		sendChat: sendAnthropicChat,
-		sendFIM: null,
-		list: anthropicList,
-	},
-	openAI: {
-		sendChat: (params) => _sendOpenAICompatibleChat(params),
-		sendFIM: null,
-		list: (params) => _openaiCompatibleList(params),
-	},
-	xAI: {
-		sendChat: (params) => _sendOpenAICompatibleChat(params),
-		sendFIM: null,
-		list: (params) => _openaiCompatibleList(params),
-	},
-	gemini: {
-		sendChat: (params) => sendGeminiChat(params),
-		sendFIM: null,
-		list: geminiList,
-	},
-	mistral: {
-		sendChat: (params) => _sendOpenAICompatibleChat(params),
-		sendFIM: (params) => sendMistralFIM(params),
-		list: (params) => _openaiCompatibleList(params),
-	},
-	ollama: {
-		sendChat: (params) => _sendOpenAICompatibleChat(params),
-		sendFIM: sendOllamaFIM,
-		list: ollamaList,
-	},
-	openAICompatible: {
-		sendChat: (params) => _sendOpenAICompatibleChat(params),
-		sendFIM: (params) => _sendOpenAICompatibleFIM(params),
-		list: (params) => _openaiCompatibleList(params),
-	},
-	openRouter: {
-		sendChat: (params) => _sendOpenAICompatibleChat(params),
-		sendFIM: (params) => _sendOpenAICompatibleFIM(params),
-		list: (params) => _openaiCompatibleList(params),
-	},
-	vLLM: {
-		sendChat: (params) => _sendOpenAICompatibleChat(params),
-		sendFIM: (params) => _sendOpenAICompatibleFIM(params),
-		list: (params) => _openaiCompatibleList(params),
-	},
-	deepseek: {
-		sendChat: (params) => _sendOpenAICompatibleChat(params),
-		sendFIM: null,
-		list: (params) => _openaiCompatibleList(params),
-	},
-	moonshot: {
-		sendChat: (params) => _sendOpenAICompatibleChat(params),
-		sendFIM: null,
-		list: (params) => _openaiCompatibleList(params),
-	},
-	nvidia: {
-		sendChat: (params) => _sendOpenAICompatibleChat(params),
-		sendFIM: null,
-		list: (params) => _openaiCompatibleList(params),
-	},
-	groq: {
-		sendChat: (params) => _sendOpenAICompatibleChat(params),
-		sendFIM: null,
-		list: (params) => _openaiCompatibleList(params),
-	},
-
-	lmStudio: {
-		sendChat: (params) => _sendOpenAICompatibleChat(params),
-		sendFIM: (params) => _sendOpenAICompatibleFIM(params),
-		list: (params) => _openaiCompatibleList(params),
-	},
-	liteLLM: {
-		sendChat: (params) => _sendOpenAICompatibleChat(params),
-		sendFIM: (params) => _sendOpenAICompatibleFIM(params),
-		list: (params) => _openaiCompatibleList(params),
-	},
-	googleVertex: {
-		sendChat: (params) => _sendOpenAICompatibleChat(params),
-		sendFIM: null,
-		list: (params) => _openaiCompatibleList(params),
-	},
-	microsoftAzure: {
-		sendChat: (params) => _sendOpenAICompatibleChat(params),
-		sendFIM: null,
-		list: null,
-	},
-	awsBedrock: {
-		sendChat: (params) => _sendOpenAICompatibleChat(params),
-		sendFIM: null,
-		list: (params) => _openaiCompatibleList(params),
-	},
-	llamaServer: {
-		sendChat: (params) => _sendOpenAICompatibleChat(params),
-		sendFIM: (params) => _sendOpenAICompatibleFIM(params),
-		list: (params) => _openaiCompatibleList(params),
-	},
-
+    anthropic: {
+        sendChat: sendAnthropicChat,
+        sendFIM: null,
+        list: anthropicList,
+    },
+    openAI: {
+        sendChat: (params) => _sendOpenAICompatibleChat(params),
+        sendFIM: null,
+        list: (params) => _openaiCompatibleList(params),
+    },
+    xAI: {
+        sendChat: (params) => _sendOpenAICompatibleChat(params),
+        sendFIM: null,
+        list: (params) => _openaiCompatibleList(params),
+    },
+    gemini: {
+        sendChat: (params) => sendGeminiChat(params),
+        sendFIM: null,
+        list: geminiList,
+    },
+    mistral: {
+        sendChat: (params) => _sendOpenAICompatibleChat(params),
+        sendFIM: (params) => sendMistralFIM(params),
+        list: (params) => _openaiCompatibleList(params),
+    },
+    ollama: {
+        sendChat: (params) => _sendOpenAICompatibleChat(params),
+        sendFIM: sendOllamaFIM,
+        list: ollamaList,
+    },
+    openAICompatible: {
+        sendChat: (params) => _sendOpenAICompatibleChat(params),
+        sendFIM: (params) => _sendOpenAICompatibleFIM(params),
+        list: (params) => _openaiCompatibleList(params),
+    },
+    openRouter: {
+        sendChat: (params) => _sendOpenAICompatibleChat(params),
+        sendFIM: (params) => _sendOpenAICompatibleFIM(params),
+        list: (params) => _openaiCompatibleList(params),
+    },
+    vLLM: {
+        sendChat: (params) => _sendOpenAICompatibleChat(params),
+        sendFIM: (params) => _sendOpenAICompatibleFIM(params),
+        list: (params) => _openaiCompatibleList(params),
+    },
+    deepseek: {
+        sendChat: (params) => _sendOpenAICompatibleChat(params),
+        sendFIM: null,
+        list: (params) => _openaiCompatibleList(params),
+    },
+    moonshot: {
+        sendChat: (params) => _sendOpenAICompatibleChat(params),
+        sendFIM: null,
+        list: (params) => _openaiCompatibleList(params),
+    },
+    nvidia: {
+        sendChat: (params) => _sendOpenAICompatibleChat(params),
+        sendFIM: null,
+        list: (params) => _openaiCompatibleList(params),
+    },
+    groq: {
+        sendChat: (params) => _sendOpenAICompatibleChat(params),
+        sendFIM: null,
+        list: (params) => _openaiCompatibleList(params),
+    },
+    lmStudio: {
+        sendChat: (params) => _sendOpenAICompatibleChat(params),
+        sendFIM: (params) => _sendOpenAICompatibleFIM(params),
+        list: (params) => _openaiCompatibleList(params),
+    },
+    liteLLM: {
+        sendChat: (params) => _sendOpenAICompatibleChat(params),
+        sendFIM: (params) => _sendOpenAICompatibleFIM(params),
+        list: (params) => _openaiCompatibleList(params),
+    },
+    googleVertex: {
+        sendChat: (params) => _sendOpenAICompatibleChat(params),
+        sendFIM: null,
+        list: (params) => _openaiCompatibleList(params),
+    },
+    microsoftAzure: {
+        sendChat: (params) => _sendOpenAICompatibleChat(params),
+        sendFIM: null,
+        list: null,
+    },
+    awsBedrock: {
+        sendChat: (params) => _sendOpenAICompatibleChat(params),
+        sendFIM: null,
+        list: (params) => _openaiCompatibleList(params),
+    },
+    llamaServer: {
+        sendChat: (params) => _sendOpenAICompatibleChat(params),
+        sendFIM: (params) => _sendOpenAICompatibleFIM(params),
+        list: (params) => _openaiCompatibleList(params),
+    },
 } satisfies CallFnOfProvider
-
-
-
-
-/*
-FIM info (this may be useful in the future with vLLM, but in most cases the only way to use FIM is if the provider explicitly supports it):
-
-qwen2.5-coder https://ollama.com/library/qwen2.5-coder/blobs/e94a8ecb9327
-<|fim_prefix|>{{ .Prompt }}<|fim_suffix|>{{ .Suffix }}<|fim_middle|>
-
-codestral https://ollama.com/library/codestral/blobs/51707752a87c
-[SUFFIX]{{ .Suffix }}[PREFIX] {{ .Prompt }}
-
-deepseek-coder-v2 https://ollama.com/library/deepseek-coder-v2/blobs/22091531faf0
-<｜fim▁begin｜>{{ .Prompt }}<｜fim▁hole｜>{{ .Suffix }}<｜fim▁end｜>
-
-starcoder2 https://ollama.com/library/starcoder2/blobs/3b190e68fefe
-<file_sep>
-<fim_prefix>
-{{ .Prompt }}<fim_suffix>{{ .Suffix }}<fim_middle>
-<|end_of_text|>
-
-codegemma https://ollama.com/library/codegemma:2b/blobs/48d9a8140749
-<|fim_prefix|>{{ .Prompt }}<|fim_suffix|>{{ .Suffix }}<|fim_middle|>
-
-*/
