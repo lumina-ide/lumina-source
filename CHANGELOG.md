@@ -2,6 +2,22 @@
 
 All notable changes to Lumina are documented here.
 
+## [0.1.28] — 2026-10-08
+
+### Added — NVIDIA Nemotron & MiniMax Frontier Models Support
+- **Full Nemotron & MiniMax Integration** — Native support and detection for NVIDIA Nemotron models (`nemotron`, `550b`, `a55b`, `nemotron-4-340b`, `nvidia/nemotron-3-ultra-550b-a55b`, `nvidia/llama-3.1-nemotron-70b-instruct`) and MiniMax models (`minimax-01`, `minimax-text-01`, `abab`).
+- **1,000,000 Tokens (1M) Context Window** — Expanded context window to 1,000,000 tokens for Nemotron 3 Ultra 550B and MiniMax, eliminating premature prompt truncation and context starvation.
+- **Configurable Reasoning Slider** — Dedicated reasoning budget slider for Nemotron/MiniMax models with configurable budget up to 32,768 tokens (default 8,192 tokens) and 16,384 reserved output token space.
+- **System Role Support** — Native `system-role` support for Nemotron, delivering guidelines and workspace context cleanly in dedicated system messages.
+
+### Fixed — XML & Invoke Tool Leak Interception
+- **Streaming Parser for `<invoke>` and MiniMax Tool Tags** — Intercepts and parses `<invoke name="...">`, `<parameter name="...">`, `<minimax:tool_call>`, and `<tool_call>` in real time during streaming.
+- **Leak Elimination** — Strips raw XML/invoke tags from the visible chat output, preventing internal parameter leaks from polluting user conversations.
+- **Automatic Tool Execution** — Directly converts parsed invoke blocks into native Lumina tool calls and executes them immediately.
+- **OpenAI-Compatible Tool Fallback** — Restored native `tools` schema forwarding for OpenAI-compatible endpoints when `specialToolFormat` is unspecified, ensuring models receive function calling definitions.
+
+---
+
 ## [0.1.27] — 2026-10-07
 
 ### Added — Llama b11476 & CUDA 13.4 Integration

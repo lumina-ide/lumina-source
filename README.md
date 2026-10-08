@@ -37,7 +37,8 @@ Unlike other AI editors, Lumina focuses on privacy, developer autonomy, and offl
 ### Key Features
 *   **100% Local Inference & Bundled CUDA 13.4:** Built-in integration with `llama.cpp` (build `b11476`) with pre-packaged **NVIDIA CUDA 13.4** acceleration libraries and transparent Vulkan/CPU fallbacks.
 *   **Autonomous & Grounded AI Agent:** Proactive workspace inspection (`read_file`, `ls_dir`, `search_for_files`), autonomous multi-step reasoning, and direct workspace modifications without copy-pasting diffs.
-*   **Reasoning & Thinking Models Support:** Automatic detection and budget allocation slider (`budget_slider`) for reasoning models (DeepSeek-R1, QwQ, etc.) with dedicated token spaces.
+*   **Reasoning & Thinking Models Support:** Automatic detection and budget allocation slider (`budget_slider`) for reasoning models (NVIDIA Nemotron 3 Ultra 550B, MiniMax-01, DeepSeek-R1, QwQ, etc.) with up to 1,000,000 (1M) context window and dedicated token spaces.
+*   **Resilient Tool Execution & Leak Protection:** Real-time streaming interception for `<invoke>` and MiniMax tool formats, preventing raw parameters from leaking into chat while executing tools flawlessly.
 *   **Built-in Free Web Search:** Native DuckDuckGo web search tool (`web_search`) without API keys, costs or subscriptions, with an intuitive 1-click toggle button directly in the chat toolbar.
 *   **Dynamic API Model Listing:** Instantly fetch and update available models from remote providers (OpenRouter, Groq, Gemini, Anthropic, DeepSeek, Mistral, xAI, Ollama, etc.).
 *   **Privacy First:** Directly communicates with your local services (or remote APIs) with zero data retention or telemetry from our side.
@@ -77,7 +78,8 @@ Ao contrário de outros editores de IA, o Lumina é focado em privacidade, auton
 ### Principais Funcionalidades
 *   **Inferência 100% Local & CUDA 13.4 Integrado:** Integração nativa com `llama.cpp` (build `b11476`) pré-empacotada com bibliotecas oficiais de aceleração **NVIDIA CUDA 13.4**, além de fallbacks automáticos para Vulkan e CPU.
 *   **Agente de IA Autônomo e Fundamentado:** Inspeção proativa do workspace (`read_file`, `ls_dir`, `search_for_files`), raciocínio multi-etapas autônomo e modificação direta de arquivos sem colar diffs no chat.
-*   **Suporte a Modelos de Raciocínio (Thinking/Reasoning):** Identificação automática e controle de budget de pensamento via slider dedicado (`budget_slider` para DeepSeek-R1, QwQ, etc.) com alocação reservada de tokens.
+*   **Suporte a Modelos de Raciocínio (Thinking/Reasoning):** Identificação automática e controle de budget de pensamento via slider dedicado (`budget_slider` para NVIDIA Nemotron 3 Ultra 550B, MiniMax-01, DeepSeek-R1, QwQ, etc.) com janela de contexto de até 1.000.000 (1M) de tokens e alocação reservada.
+*   **Execução Resiliente de Ferramentas & Proteção Contra Fuga de Tags:** Interceptação em streaming de tags `<invoke>` e formatos MiniMax, eliminando vazamento de parâmetros no chat e executando ferramentas com perfeição.
 *   **Busca Web Gratuita Integrada:** Ferramenta nativa DuckDuckGo (`web_search`) sem necessidade de chaves de API, custos ou assinaturas, com botão prático no chat para ligar/desligar com 1 clique.
 *   **Listagem Dinâmica de Modelos:** Busca automática dos modelos disponíveis em provedores remotos (OpenRouter, Groq, Gemini, Anthropic, DeepSeek, Mistral, xAI, Ollama, etc.).
 *   **Privacidade em Primeiro Lugar:** Comunicação direta com seus serviços locais (ou APIs remotas) com zero retenção de dados ou telemetria de nossa parte.
