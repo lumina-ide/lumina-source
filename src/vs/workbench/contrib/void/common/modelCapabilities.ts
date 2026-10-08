@@ -230,7 +230,6 @@ const defaultModelOptions = {
 	downloadable: false,
 	supportsSystemMessage: 'system-role',
 	supportsFIM: false,
-	specialToolFormat: 'openai-style',
 	reasoningCapabilities: false,
 } as const satisfies VoidStaticModelInfo
 
@@ -241,7 +240,6 @@ const openSourceModelOptions_assumingOAICompat = {
 	'nemotron': {
 		supportsFIM: false,
 		supportsSystemMessage: 'system-role',
-		specialToolFormat: 'openai-style',
 		reasoningCapabilities: {
 			supportsReasoning: true,
 			canTurnOffReasoning: true,
@@ -256,7 +254,6 @@ const openSourceModelOptions_assumingOAICompat = {
 	'minimax': {
 		supportsFIM: false,
 		supportsSystemMessage: 'system-role',
-		specialToolFormat: 'openai-style',
 		reasoningCapabilities: {
 			supportsReasoning: true,
 			canTurnOffReasoning: true,
@@ -271,7 +268,6 @@ const openSourceModelOptions_assumingOAICompat = {
 	'deepseekR1': {
 		supportsFIM: false,
 		supportsSystemMessage: false,
-		specialToolFormat: 'openai-style',
 		reasoningCapabilities: {
 			supportsReasoning: true,
 			canTurnOffReasoning: true,
@@ -434,7 +430,7 @@ const extensiveModelOptionsFallback: VoidStaticProviderInfo['modelOptionsFallbac
 		return {
 			recognizedModelName,
 			modelName,
-			specialToolFormat: opts.specialToolFormat ?? 'openai-style',
+			specialToolFormat: opts.specialToolFormat,
 			...opts,
 			supportsSystemMessage: supportsSystemMessage,
 			cost: { input: 0, output: 0 },

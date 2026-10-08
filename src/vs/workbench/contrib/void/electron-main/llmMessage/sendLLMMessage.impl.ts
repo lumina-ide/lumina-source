@@ -283,7 +283,7 @@ const _sendOpenAICompatibleChat = async ({ messages, onText, onFinalMessage, onE
 
     // tools
     const potentialTools = openAITools(chatMode, mcpTools)
-    const nativeToolsObj = potentialTools && (specialToolFormat === 'openai-style' || specialToolFormat === undefined) ?
+    const nativeToolsObj = potentialTools && specialToolFormat === 'openai-style' ?
         { tools: potentialTools } as const
         : {}
 
@@ -406,8 +406,14 @@ const _sendOpenAICompatibleChat = async ({ messages, onText, onFinalMessage, onE
             onFinalMessage({ fullText: fullTextSoFar, fullReasoning: fullReasoningSoFar, anthropicReasoning: null, ...toolCallObj });
         })
         .catch(error => {
-            if (error instanceof OpenAI.APIError && error.status === 401) { onError({ message: invalidApiKeyMessage(providerName), fullError: error }); }
-            else { onError({ message: error + '', fullError: error }); }
+            if (error instanceof OpenAI.APIError && error.status === 401) {
+                onError({ message: invalidApiKeyMessage(providerName), fullError: error });
+            } else if (error instanceof OpenAI.APIError) {
+                const detailedMsg = (error.error as any)?.message || error.message;
+                onError({ message: detailedMsg, fullError: error });
+            } else {
+                onError({ message: error + '', fullError: error });
+            }
         })
 }
 
