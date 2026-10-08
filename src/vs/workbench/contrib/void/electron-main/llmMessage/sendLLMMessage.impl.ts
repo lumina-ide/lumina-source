@@ -283,7 +283,7 @@ const _sendOpenAICompatibleChat = async ({ messages, onText, onFinalMessage, onE
 
     // tools
     const potentialTools = openAITools(chatMode, mcpTools)
-    const nativeToolsObj = potentialTools && specialToolFormat === 'openai-style' ?
+    const nativeToolsObj = potentialTools && (specialToolFormat === 'openai-style' || specialToolFormat === undefined) ?
         { tools: potentialTools } as const
         : {}
 
@@ -355,12 +355,10 @@ const _sendOpenAICompatibleChat = async ({ messages, onText, onFinalMessage, onE
         onFinalMessage = newOnFinalMessage
     }
 
-    // manually parse out tool results if XML
-    if (!specialToolFormat) {
-        const { newOnText, newOnFinalMessage } = extractXMLToolsWrapper(onText, onFinalMessage, chatMode, mcpTools)
-        onText = newOnText
-        onFinalMessage = newOnFinalMessage
-    }
+    // manually parse out tool results if XML or if model leaks XML tool calls
+    const { newOnText, newOnFinalMessage } = extractXMLToolsWrapper(onText, onFinalMessage, chatMode, mcpTools)
+    onText = newOnText
+    onFinalMessage = newOnFinalMessage
 
     let fullReasoningSoFar = ''
     let fullTextSoFar = ''

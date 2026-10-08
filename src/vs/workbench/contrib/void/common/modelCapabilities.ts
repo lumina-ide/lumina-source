@@ -230,6 +230,7 @@ const defaultModelOptions = {
 	downloadable: false,
 	supportsSystemMessage: 'system-role',
 	supportsFIM: false,
+	specialToolFormat: 'openai-style',
 	reasoningCapabilities: false,
 } as const satisfies VoidStaticModelInfo
 
@@ -237,9 +238,40 @@ const defaultModelOptions = {
 // TODO!!! add openrouter common models
 // TODO!!! allow user to modify capabilities and tell them if autodetected model or falling back
 const openSourceModelOptions_assumingOAICompat = {
+	'nemotron': {
+		supportsFIM: false,
+		supportsSystemMessage: 'system-role',
+		specialToolFormat: 'openai-style',
+		reasoningCapabilities: {
+			supportsReasoning: true,
+			canTurnOffReasoning: true,
+			canIOReasoning: true,
+			openSourceThinkTags: ['<think>', '</think>'],
+			reasoningReservedOutputTokenSpace: 16384,
+			reasoningSlider: { type: 'budget_slider', min: 1024, max: 32768, default: 8192 }
+		},
+		contextWindow: 1_000_000,
+		reservedOutputTokenSpace: 16_384,
+	},
+	'minimax': {
+		supportsFIM: false,
+		supportsSystemMessage: 'system-role',
+		specialToolFormat: 'openai-style',
+		reasoningCapabilities: {
+			supportsReasoning: true,
+			canTurnOffReasoning: true,
+			canIOReasoning: true,
+			openSourceThinkTags: ['<think>', '</think>'],
+			reasoningReservedOutputTokenSpace: 16384,
+			reasoningSlider: { type: 'budget_slider', min: 1024, max: 32768, default: 8192 }
+		},
+		contextWindow: 1_000_000,
+		reservedOutputTokenSpace: 16_384,
+	},
 	'deepseekR1': {
 		supportsFIM: false,
 		supportsSystemMessage: false,
+		specialToolFormat: 'openai-style',
 		reasoningCapabilities: {
 			supportsReasoning: true,
 			canTurnOffReasoning: true,
@@ -422,6 +454,9 @@ const extensiveModelOptionsFallback: VoidStaticProviderInfo['modelOptionsFallbac
 	if (lower.includes('deepseek-r1') || lower.includes('deepseek-reasoner')) return toFallback(openSourceModelOptions_assumingOAICompat, 'deepseekR1')
 	if (lower.includes('deepseek') && lower.includes('v2')) return toFallback(openSourceModelOptions_assumingOAICompat, 'deepseekCoderV2')
 	if (lower.includes('deepseek')) return toFallback(openSourceModelOptions_assumingOAICompat, 'deepseekCoderV3')
+
+	if (lower.includes('nemotron') || lower.includes('550b') || lower.includes('a55b')) return toFallback(openSourceModelOptions_assumingOAICompat, 'nemotron')
+	if (lower.includes('minimax') || lower.includes('abab')) return toFallback(openSourceModelOptions_assumingOAICompat, 'minimax')
 
 	if (lower.includes('llama3')) return toFallback(openSourceModelOptions_assumingOAICompat, 'llama3')
 	if (lower.includes('helixa')) return toFallback(openSourceModelOptions_assumingOAICompat, 'llama3')
@@ -1268,6 +1303,27 @@ const liteLLMSettings: VoidStaticProviderInfo = { // https://docs.litellm.ai/doc
 
 // ---------------- OPENROUTER ----------------
 const openRouterModelOptions_assumingOpenAICompat = {
+	'nvidia/nemotron-3-ultra-550b-a55b': {
+		...openSourceModelOptions_assumingOAICompat['nemotron'],
+		contextWindow: 1_000_000,
+		reservedOutputTokenSpace: null,
+		cost: { input: 1.0, output: 3.0 },
+		downloadable: false,
+	},
+	'nvidia/llama-3.1-nemotron-70b-instruct': {
+		...openSourceModelOptions_assumingOAICompat['nemotron'],
+		contextWindow: 131_072,
+		reservedOutputTokenSpace: null,
+		cost: { input: 0.35, output: 0.4 },
+		downloadable: false,
+	},
+	'minimax/minimax-01': {
+		...openSourceModelOptions_assumingOAICompat['minimax'],
+		contextWindow: 1_000_000,
+		reservedOutputTokenSpace: null,
+		cost: { input: 0.2, output: 1.1 },
+		downloadable: false,
+	},
 	'qwen/qwen3-235b-a22b': {
 		contextWindow: 40_960,
 		reservedOutputTokenSpace: null,

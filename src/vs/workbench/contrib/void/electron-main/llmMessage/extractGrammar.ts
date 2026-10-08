@@ -156,15 +156,81 @@ const findIndexOfAny = (fullText: string, matches: string[]) => {
 
 
 type ToolOfToolName = { [toolName: string]: InternalToolInfo | undefined }
-const parseXMLPrefixToToolCall = <T extends ToolName,>(toolName: T, toolId: string, str: string, toolOfToolName: ToolOfToolName): RawToolCallObj => {
+const parseXMLPrefixToToolCall = (toolName: ToolName | undefined, toolId: string, str: string, toolOfToolName: ToolOfToolName): RawToolCallObj => {
+	// 1. Support <invoke name="..."> / minimax:tool_call / <minimax:tool_call> format
+	const invokeMatch = str.match(/<invoke\s+name=["']([^"']+)["']\s*>/i);
+	if (invokeMatch) {
+		const invokedToolName = invokeMatch[1] as ToolName;
+		const afterInvoke = str.substring(invokeMatch.index! + invokeMatch[0].length);
+		const invokeCloseIdx = afterInvoke.indexOf('</invoke>');
+		const isDone = invokeCloseIdx !== -1 || str.includes('</minimax:tool_call>') || str.includes('</tool_call>');
+		const body = invokeCloseIdx !== -1 ? afterInvoke.substring(0, invokeCloseIdx) : afterInvoke;
+
+		const paramsObj: RawToolParamsObj = {};
+		const doneParams: ToolParamName<ToolName>[] = [];
+		const paramRegex = /<parameter\s+name=["']([^"']+)["'](?:\s+value=["']([^"']*)["']\s*\/?>|\s*>([\s\S]*?)(?:<\/parameter>|(?=<parameter\s+name=)|$))/gi;
+		let match: RegExpExecArray | null;
+		while ((match = paramRegex.exec(body)) !== null) {
+			const paramName = match[1] as ToolParamName<ToolName>;
+			if (match[2] !== undefined) {
+				paramsObj[paramName] = trimBeforeAndAfterNewLines(match[2]);
+				doneParams.push(paramName);
+			} else if (match[3] !== undefined) {
+				paramsObj[paramName] = trimBeforeAndAfterNewLines(match[3]);
+				if (match[0].includes('</parameter>')) {
+					doneParams.push(paramName);
+				}
+			}
+		}
+
+		return {
+			name: invokedToolName,
+			rawParams: paramsObj,
+			doneParams,
+			isDone,
+			id: toolId,
+		};
+	}
+
+	// 2. Support JSON formatted tool call inside <tool_call>
+	const toolCallJsonMatch = str.match(/<tool_call>([\s\S]*?)(?:<\/tool_call>|$)/i);
+	if (toolCallJsonMatch) {
+		const body = toolCallJsonMatch[1].trim();
+		const isDone = toolCallJsonMatch[0].includes('</tool_call>');
+		try {
+			const parsed = JSON.parse(body);
+			if (parsed.name) {
+				const rawParams = parsed.arguments || parsed.parameters || {};
+				return {
+					name: parsed.name as ToolName,
+					rawParams,
+					doneParams: Object.keys(rawParams) as ToolParamName<ToolName>[],
+					isDone,
+					id: toolId,
+				};
+			}
+		} catch {
+			const nameMatch = body.match(/"name"\s*:\s*"([^"]+)"/);
+			if (nameMatch) {
+				return {
+					name: nameMatch[1] as ToolName,
+					rawParams: {},
+					doneParams: [],
+					isDone: false,
+					id: toolId,
+				};
+			}
+		}
+	}
+
 	const paramsObj: RawToolParamsObj = {}
-	const doneParams: ToolParamName<T>[] = []
+	const doneParams: ToolParamName<ToolName>[] = []
 	let isDone = false
 
 	const getAnswer = (): RawToolCallObj => {
 		// trim off all whitespace at and before first \n and after last \n for each param
 		for (const p in paramsObj) {
-			const paramName = p as ToolParamName<T>
+			const paramName = p as ToolParamName<ToolName>
 			const orig = paramsObj[paramName]
 			if (orig === undefined) continue
 			paramsObj[paramName] = trimBeforeAndAfterNewLines(orig)
@@ -172,7 +238,7 @@ const parseXMLPrefixToToolCall = <T extends ToolName,>(toolName: T, toolId: stri
 
 		// return tool call
 		const ans: RawToolCallObj = {
-			name: toolName,
+			name: toolName || ('' as ToolName),
 			rawParams: paramsObj,
 			doneParams: doneParams,
 			isDone: isDone,
@@ -180,6 +246,8 @@ const parseXMLPrefixToToolCall = <T extends ToolName,>(toolName: T, toolId: stri
 		}
 		return ans
 	}
+
+	if (!toolName) return getAnswer()
 
 	// find first toolName tag
 	const openToolTag = `<${toolName}>`
@@ -194,16 +262,16 @@ const parseXMLPrefixToToolCall = <T extends ToolName,>(toolName: T, toolId: stri
 
 	const pm = new SurroundingsRemover(str)
 
-	const allowedParams = Object.keys(toolOfToolName[toolName]?.params ?? {}) as ToolParamName<T>[]
+	const allowedParams = Object.keys(toolOfToolName[toolName]?.params ?? {}) as ToolParamName<ToolName>[]
 	if (allowedParams.length === 0) return getAnswer()
-	let latestMatchedOpenParam: null | ToolParamName<T> = null
+	let latestMatchedOpenParam: null | ToolParamName<ToolName> = null
 	let n = 0
 	while (true) {
 		n += 1
 		if (n > 10) return getAnswer() // just for good measure as this code is early
 
 		// find the param name opening tag
-		let matchedOpenParam: null | ToolParamName<T> = null
+		let matchedOpenParam: null | ToolParamName<ToolName> = null
 		for (const paramName of allowedParams) {
 			const removed = pm.removeFromStartUntilFullMatch(`<${paramName}>`, true)
 			if (removed) {
@@ -263,7 +331,14 @@ export const extractXMLToolsWrapper = (
 	if (!tools) return { newOnText: onText, newOnFinalMessage: onFinalMessage }
 
 	const toolOfToolName: ToolOfToolName = {}
-	const toolOpenTags = tools.map(t => `<${t.name}>`)
+	const toolOpenTags: string[] = [
+		...tools.map(t => `<${t.name}>`),
+		'<minimax:tool_call',
+		'minimax:tool_call',
+		'<invoke',
+		'<tool_call',
+		'<function_call',
+	]
 	for (const t of tools) { toolOfToolName[t.name] = t }
 
 	const toolId = generateUuid()
@@ -273,7 +348,7 @@ export const extractXMLToolsWrapper = (
 	let trueFullText = ''
 	let latestToolCall: RawToolCallObj | undefined = undefined
 
-	let foundOpenTag: { idx: number, toolName: ToolName } | null = null
+	let foundOpenTag: { idx: number, toolName?: ToolName } | null = null
 	let openToolTagBuffer = '' // the characters we've seen so far that come after a < with no space afterwards, not yet added to fullText
 
 	let prevFullTextLen = 0
@@ -303,7 +378,7 @@ export const extractXMLToolsWrapper = (
 				const i = findIndexOfAny(fullText, toolOpenTags)
 				if (i !== null) {
 					const [idx, toolTag] = i
-					const toolName = toolTag.substring(1, toolTag.length - 1) as ToolName
+					const toolName = toolTag.startsWith('<') && toolTag.endsWith('>') ? (toolTag.substring(1, toolTag.length - 1) as ToolName) : undefined
 					// console.log('found ', toolName)
 					foundOpenTag = { idx, toolName }
 
@@ -328,7 +403,7 @@ export const extractXMLToolsWrapper = (
 		onText({
 			...params,
 			fullText,
-			toolCall: latestToolCall,
+			toolCall: (latestToolCall && latestToolCall.name) ? latestToolCall : params.toolCall,
 		});
 	};
 
@@ -338,14 +413,14 @@ export const extractXMLToolsWrapper = (
 		newOnText({ ...params })
 
 		fullText = fullText.trimEnd()
-		const toolCall = latestToolCall
+		const effectiveToolCall = (latestToolCall && latestToolCall.name) ? latestToolCall : params.toolCall
 
 		// console.log('final message!!!', trueFullText)
 		// console.log('----- returning ----\n', fullText)
 		// console.log('----- tools ----\n', JSON.stringify(firstToolCallRef.current, null, 2))
 		// console.log('----- toolCall ----\n', JSON.stringify(toolCall, null, 2))
 
-		onFinalMessage({ ...params, fullText, toolCall: toolCall })
+		onFinalMessage({ ...params, fullText, toolCall: effectiveToolCall })
 	}
 	return { newOnText, newOnFinalMessage };
 }
