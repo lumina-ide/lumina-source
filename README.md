@@ -35,20 +35,21 @@ Get the latest stable release for Windows. Linux and macOS builds coming soon!
 Unlike other AI editors, Lumina focuses on privacy, developer autonomy, and offline capability. It allows you to run AI agents and autocomplete directly on your local hardware without sending your code to third-party servers.
 
 ### Key Features
-*   **100% Local Inference:** Built-in integration with `llama.cpp` to run model inference locally on your own machine.
+*   **100% Local Inference & Bundled CUDA 13.4:** Built-in integration with `llama.cpp` (build `b11476`) with pre-packaged **NVIDIA CUDA 13.4** acceleration libraries and transparent Vulkan/CPU fallbacks.
+*   **Autonomous & Grounded AI Agent:** Proactive workspace inspection (`read_file`, `ls_dir`, `search_for_files`), autonomous multi-step reasoning, and direct workspace modifications without copy-pasting diffs.
+*   **Reasoning & Thinking Models Support:** Automatic detection and budget allocation slider (`budget_slider`) for reasoning models (DeepSeek-R1, QwQ, etc.) with dedicated token spaces.
 *   **Built-in Free Web Search:** Native DuckDuckGo web search tool (`web_search`) without API keys, costs or subscriptions, with an intuitive 1-click toggle button directly in the chat toolbar.
 *   **Dynamic API Model Listing:** Instantly fetch and update available models from remote providers (OpenRouter, Groq, Gemini, Anthropic, DeepSeek, Mistral, xAI, Ollama, etc.).
 *   **Privacy First:** Directly communicates with your local services (or remote APIs) with zero data retention or telemetry from our side.
-*   **Advanced AI Agent:** Run agents that can read, write, and execute files within your workspace to solve complex tasks.
-*   **Visual Customizations:** Upgraded settings panel with manual parameters control (GPU layers, threads, temperature, custom system prompts).
+*   **Fine-Grained Parameter Controls:** Upgraded settings panel with manual parameter tuning (GPU layers, threads, temperature, repetition penalty, reasoning budgets).
 *   **VS Code Ecosystem:** Full compatibility with VS Code themes, extensions, and keyboard shortcuts.
 
 ### Local Llama Backend Setup (Windows x64)
-To use local Llama models, you must download the server binaries and place them in the folder structure:
+Lumina packages the required runtime binaries out of the box in installer releases. If you need to manually update or customize the `llama.cpp` binaries:
 
-1.  **Download:** Go to [llama.cpp Releases](https://github.com/ggerganov/llama.cpp/releases).
+1.  **Download:** Go to [llama.cpp Releases](https://github.com/ggerganov/llama.cpp/releases) (build `b11476`+ recommended).
     *   For **CPU/Vulkan**: Download `llama-bXXXX-bin-win-x64.zip`.
-    *   For **CUDA (NVIDIA)**: Download `llama-bXXXX-bin-win-cuXX.X-x64.zip`.
+    *   For **CUDA (NVIDIA)**: Download `llama-bXXXX-bin-win-cu13.4-x64.zip` (along with CUDA 13.4 runtime DLLs: `cudart64_13.dll`, `cublas64_13.dll`, `cublasLt64_13.dll`).
 2.  **Placement:** Extract the files (including `llama-server.exe` and `.dll` dependencies) into:
     *   *CPU:* `resources/llama/win32-x64/cpu/`
     *   *CUDA:* `resources/llama/win32-x64/cuda/`
@@ -74,20 +75,21 @@ O **Lumina** é um editor de código moderno, de código aberto e alimentado por
 Ao contrário de outros editores de IA, o Lumina é focado em privacidade, autonomia do desenvolvedor e capacidade offline. Ele permite que você execute agentes de IA e autocompletar diretamente no seu hardware local, sem enviar seu código para servidores de terceiros.
 
 ### Principais Funcionalidades
-*   **Inferência 100% Local:** Integração nativa com `llama.cpp` para rodar modelos localmente na sua própria máquina.
+*   **Inferência 100% Local & CUDA 13.4 Integrado:** Integração nativa com `llama.cpp` (build `b11476`) pré-empacotada com bibliotecas oficiais de aceleração **NVIDIA CUDA 13.4**, além de fallbacks automáticos para Vulkan e CPU.
+*   **Agente de IA Autônomo e Fundamentado:** Inspeção proativa do workspace (`read_file`, `ls_dir`, `search_for_files`), raciocínio multi-etapas autônomo e modificação direta de arquivos sem colar diffs no chat.
+*   **Suporte a Modelos de Raciocínio (Thinking/Reasoning):** Identificação automática e controle de budget de pensamento via slider dedicado (`budget_slider` para DeepSeek-R1, QwQ, etc.) com alocação reservada de tokens.
 *   **Busca Web Gratuita Integrada:** Ferramenta nativa DuckDuckGo (`web_search`) sem necessidade de chaves de API, custos ou assinaturas, com botão prático no chat para ligar/desligar com 1 clique.
 *   **Listagem Dinâmica de Modelos:** Busca automática dos modelos disponíveis em provedores remotos (OpenRouter, Groq, Gemini, Anthropic, DeepSeek, Mistral, xAI, Ollama, etc.).
 *   **Privacidade em Primeiro Lugar:** Comunicação direta com seus serviços locais (ou APIs remotas) com zero retenção de dados ou telemetria de nossa parte.
-*   **Agente de IA Avançado:** Execute agentes capazes de ler, escrever e modificar arquivos no seu espaço de trabalho para resolver tarefas complexas.
-*   **Parâmetros de Modelos Customizáveis:** Painel de configurações aprimorado com controle manual de parâmetros (GPU layers, threads, temperatura, stop tokens, prompts de sistema).
+*   **Controle Detalhado de Parâmetros:** Painel de configurações aprimorado com controle manual de parâmetros (GPU layers, threads, temperatura, repetition penalty, budget de raciocínio).
 *   **Ecossistema VS Code:** Compatibilidade total com temas, extensões e atalhos do VS Code.
 
 ### Configuração do Servidor Llama Local (Windows x64)
-Para utilizar modelos locais Llama, você precisa baixar as binárias do servidor e organizá-las nas pastas corretas:
+O Lumina já empacota as binárias e DLLs necessárias no instalador oficial. Caso você queira atualizar ou personalizar manualmente os binários do `llama.cpp`:
 
-1.  **Download:** Acesse as [Releases do llama.cpp](https://github.com/ggerganov/llama.cpp/releases).
+1.  **Download:** Acesse as [Releases do llama.cpp](https://github.com/ggerganov/llama.cpp/releases) (build `b11476`+ recomendada).
     *   Para **CPU/Vulkan**: Baixe `llama-bXXXX-bin-win-x64.zip`.
-    *   Para **CUDA (NVIDIA)**: Baixe `llama-bXXXX-bin-win-cuXX.X-x64.zip`.
+    *   Para **CUDA (NVIDIA)**: Baixe `llama-bXXXX-bin-win-cu13.4-x64.zip` (junto com as DLLs de runtime CUDA 13.4: `cudart64_13.dll`, `cublas64_13.dll`, `cublasLt64_13.dll`).
 2.  **Onde colocar:** Extraia os arquivos (incluindo `llama-server.exe` e as dependências `.dll`) nas pastas:
     *   *CPU:* `resources/llama/win32-x64/cpu/`
     *   *CUDA:* `resources/llama/win32-x64/cuda/`

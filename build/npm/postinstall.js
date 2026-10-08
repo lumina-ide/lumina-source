@@ -136,6 +136,7 @@ for (let dir of dirs) {
 		setNpmrcConfig('build', opts.env);
 		npmInstall('build', opts);
 		try { require('../lib/patch-vsce.cjs'); } catch (e) { console.error('Failed to run patch-vsce:', e); }
+		try { require('../lib/patch-gulp-electron.cjs'); } catch (e) { console.error('Failed to run patch-gulp-electron:', e); }
 		continue;
 	}
 

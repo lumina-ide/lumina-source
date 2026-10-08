@@ -498,59 +498,57 @@ ${directoryStr}
 		- Respect team standards and project rules stored in '.lumina/steering/*.md' or '.void/steering/*.md'.
 		- Support dynamic file referencing syntax '#[[file:<relative_file_name>]]' to pull specs or schemas into context on demand.`)
 
-	details.push(`Spec-Driven Development Workflow:
-		- For complex feature implementations, guide the user through 3 structured artifacts in '.lumina/specs/{feature_name}/':
-		  1. 'requirements.md': User stories and EARS acceptance criteria (WHEN [event] THEN [system] SHALL [response]).
-		  2. 'design.md': Architecture, component interfaces, data models, and Mermaid diagrams.
-		  3. 'tasks.md': Numbered coding checklist (1.1, 1.2) mapping strictly to requirements.
-		- ONE-TASK-AT-A-TIME RULE: Execute ONLY ONE sub-task per iteration. Once complete, STOP and wait for explicit user review before executing the next task.`)
+	details.push(`Proactivity & Autonomous Execution:
+		- When tools are available to retrieve, inspect, or verify information (e.g. read workspace files, search code, list directories, run terminal commands), use them directly to gather what you need rather than asking the user to provide files or answering from assumption.
+		- Read-only and context-gathering tools are ready to use immediately without asking for confirmation.
+		- When a request is ambiguous or underspecified, pick the most reasonable technical interpretation, state your assumption briefly, and proceed with completing the task rather than stalling with questions.`);
+
+	details.push(`Project Steering & Conventions:
+		- Respect team standards and project rules stored in '.lumina/steering/*.md' or '.void/steering/*.md'.
+		- Support dynamic file referencing syntax '#[[file:<relative_file_name>]]' to pull specs or schemas into context on demand.
+		- For structured feature specifications requested by the user, you may reference requirements.md, design.md, and tasks.md in '.lumina/specs/{feature_name}/' without halting unrelated tasks.`);
 
 	if (mode === 'agent' || mode === 'gather') {
-		details.push(`Only call tools if they help you accomplish the user's goal. If the user simply says hi or asks you a question that you can answer without tools, then do NOT use tools.`)
-		details.push(`If you think you should use tools, you do not need to ask for permission.`)
-		details.push('Only use ONE tool call at a time.')
-		details.push(`NEVER say something like "I'm going to use \`tool_name\`". Instead, describe at a high level what the tool will do, like "I'm going to list all files in the ___ directory", etc.`)
-		details.push(`Many tools only work if the user has a workspace open.`)
+		details.push(`Use tools directly whenever they help accomplish the user's goal. If the user simply greets you or asks a conceptual question that requires no workspace access, answer directly without tools.`);
+		details.push(`You do not need to ask for permission to use read or inspection tools.`);
+		details.push(`Do not narrate tool routing or announce tool names conversationally (avoid "I'm going to use tool_x"). State what you are doing at a high level or proceed directly to execution.`);
+		details.push(`Many tools require an open workspace folder.`);
 	}
 	else {
-		details.push(`You're allowed to ask the user for more context like file contents or specifications. If this comes up, tell them to reference files and folders by typing @.`)
+		details.push(`You're allowed to ask the user for more context like file contents or specifications. If this comes up, tell them to reference files and folders by typing @.`);
 	}
 
 	if (mode === 'agent') {
-		details.push('Be assertive and direct in your steps. Avoid verbose explanations between tool executions.');
-		details.push('ALWAYS use tools (edit, terminal, etc) to take actions and implement changes. For example, if you would like to edit a file, you MUST use a tool.')
-		details.push('Prioritize taking as many steps as you need to complete your request over stopping early.')
-		details.push(`You will OFTEN need to gather context before making a change. Do not immediately make a change unless you have ALL relevant context.`)
-		details.push(`ALWAYS have maximal certainty in a change BEFORE you make it. If you need more information about a file, variable, function, or type, you should inspect it, search it, or take all required actions to maximize your certainty that your change is correct.`)
-		details.push(`NEVER modify a file outside the user's workspace without permission from the user.`)
-		details.push(`Mandatory Grounding & File Inspection:
-		- When the user asks you to analyze, inspect, read, or build something in a project, repo, or language (e.g. "read the documentation", "analyze the project", "read the README"), you MUST call the appropriate workspace tools ('read_file', 'list_dir', 'grep_search') to actually inspect the workspace files FIRST.
-		- NEVER guess, hallucinate, or mix syntax from other programming languages (like Python, Java, C#) without reading the actual project documentation and workspace files using tools.`)
+		details.push('Be assertive, concise, and direct. Avoid verbose intermediate narration between tool executions.');
+		details.push('REQUIRED: ALWAYS use tools (edit_file, rewrite_file, run_command) to apply actual changes to the workspace. Do NOT output raw diffs or code snippets in the chat and expect the user to copy-paste them when an edit tool is available.');
+		details.push('Take as many logical steps as required to complete the objective autonomously.');
+		details.push(`Gather necessary context before modifying code. Inspect files, types, and definitions to ensure changes are accurate and compile cleanly.`);
+		details.push(`NEVER modify files outside the user's workspace without explicit permission.`);
+		details.push(`Mandatory Grounding & Workspace Inspection:
+		- When asked to analyze, inspect, build, or fix code in a project, repo, or language, call the appropriate workspace tools ('read_file', 'ls_dir', 'search_for_files', 'search_pathnames_only') to inspect the actual files FIRST.
+		- Ground all solutions in the actual workspace codebase rather than generic or imagined implementations.`);
 	}
 
 	if (mode === 'gather') {
-		details.push(`You are in Gather mode, so you MUST use tools be to gather information, files, and context to help the user answer their query.`)
-		details.push(`You should extensively read files, types, content, etc, gathering full context to solve the problem.`)
+		details.push(`You are in Gather mode: inspect files, types, and workspace structure to build comprehensive context and answer the user's query thoroughly.`);
 	}
 
 	details.push(`If you write any code blocks to the user (wrapped in triple backticks), please use this format:
 		- Include a language if possible. Terminal should have the language 'shell'.
 		- The first line of the code block must be the FULL PATH of the related file if known (otherwise omit).
-		- The remaining contents of the file should proceed as usual.`)
+		- The remaining contents of the file should proceed as usual.`);
 
-	if (mode === 'gather' || mode === 'normal') {
-
-		details.push(`If you think it's appropriate to suggest an edit to a file, then you must describe your suggestion in CODE BLOCK(S).
+	if (mode === 'normal') {
+		details.push(`If you suggest an edit to a file in Normal chat mode, describe your suggestion in CODE BLOCK(S).
 		- The first line of the code block must be the FULL PATH of the related file if known (otherwise omit).
-		- The remaining contents should be a code description of the change to make to the file. \
-		Your description is the only context that will be given to another LLM to apply the suggested edit, so it must be accurate and complete. \
-		Always bias towards writing as little as possible - NEVER write the whole file. Use comments like "// ... existing code ..." to condense your writing. \
-		Here's an example of a good code block:\n${chatSuggestionDiffExample}`)
+		- The remaining contents should be a code description of the change to make to the file.
+		Always bias towards writing as little as possible - NEVER write the whole file. Use comments like "// ... existing code ..." to condense your writing.
+		Here's an example of a good code block:\n${chatSuggestionDiffExample}`);
 	}
 
-	details.push(`Do not make things up or use information not provided in the system information, tools, or user queries.`)
-	details.push(`Always use MARKDOWN to format lists, bullet points, etc. Do NOT write tables.`)
-	details.push(`Today's date is ${new Date().toDateString()}.`)
+	details.push(`Do not make things up or use information not provided in the system information, tools, or user queries.`);
+	details.push(`Always use MARKDOWN to format lists, bullet points, etc. Do NOT write tables.`);
+	details.push(`Today's date is ${new Date().toDateString()}.`);
 
 	const importantDetails = (`Important notes:
 ${details.map((d, i) => `${i + 1}. ${d}`).join('\n\n')}`)

@@ -84,7 +84,6 @@ export const defaultProviderSettings = {
 		temperature: '0.1',
 		maxTokens: '2048',
 		repeatPenalty: '1.1',
-		systemPrompt: '',
 	},
 
 } as const
@@ -241,8 +240,15 @@ const openSourceModelOptions_assumingOAICompat = {
 	'deepseekR1': {
 		supportsFIM: false,
 		supportsSystemMessage: false,
-		reasoningCapabilities: { supportsReasoning: true, canTurnOffReasoning: false, canIOReasoning: true, openSourceThinkTags: ['<think>', '</think>'] },
-		contextWindow: 32_000, reservedOutputTokenSpace: 4_096,
+		reasoningCapabilities: {
+			supportsReasoning: true,
+			canTurnOffReasoning: true,
+			canIOReasoning: true,
+			openSourceThinkTags: ['<think>', '</think>'],
+			reasoningReservedOutputTokenSpace: 8192,
+			reasoningSlider: { type: 'budget_slider', min: 1024, max: 16384, default: 4096 }
+		},
+		contextWindow: 64_000, reservedOutputTokenSpace: 8_192,
 	},
 	'deepseekCoderV3': {
 		supportsFIM: false,
@@ -338,7 +344,14 @@ const openSourceModelOptions_assumingOAICompat = {
 	'qwq': {
 		supportsFIM: false, // no FIM, yes reasoning
 		supportsSystemMessage: 'system-role',
-		reasoningCapabilities: { supportsReasoning: true, canTurnOffReasoning: false, canIOReasoning: true, openSourceThinkTags: ['<think>', '</think>'] },
+		reasoningCapabilities: {
+			supportsReasoning: true,
+			canTurnOffReasoning: true,
+			canIOReasoning: true,
+			openSourceThinkTags: ['<think>', '</think>'],
+			reasoningReservedOutputTokenSpace: 8192,
+			reasoningSlider: { type: 'budget_slider', min: 1024, max: 16384, default: 4096 }
+		},
 		contextWindow: 128_000, reservedOutputTokenSpace: 8_192,
 	},
 	'qwen3': {
@@ -451,6 +464,11 @@ const extensiveModelOptionsFallback: VoidStaticProviderInfo['modelOptionsFallbac
 
 	if (Object.keys(openSourceModelOptions_assumingOAICompat).map(k => k.toLowerCase()).includes(lower))
 		return toFallback(openSourceModelOptions_assumingOAICompat, lower as keyof typeof openSourceModelOptions_assumingOAICompat)
+
+	// General reasoning/thinking models fallback
+	if (lower.includes('deepseek-r1') || lower.includes('r1') || lower.includes('reasoner') || lower.includes('reasoning') || lower.includes('thinking') || lower.includes('thinker')) {
+		return toFallback(openSourceModelOptions_assumingOAICompat, 'deepseekR1')
+	}
 
 	return null
 }
@@ -912,16 +930,16 @@ const geminiSettings: VoidStaticProviderInfo = {
 // ---------------- DEEPSEEK API ----------------
 const deepseekModelOptions = {
 	'deepseek-chat': {
-		...openSourceModelOptions_assumingOAICompat.deepseekR1,
+		...openSourceModelOptions_assumingOAICompat.deepseekCoderV3,
 		contextWindow: 64_000, // https://api-docs.deepseek.com/quick_start/pricing
-		reservedOutputTokenSpace: 8_000, // 8_000,
+		reservedOutputTokenSpace: 8_000,
 		cost: { cache_read: .07, input: .27, output: 1.10, },
 		downloadable: false,
 	},
 	'deepseek-reasoner': {
-		...openSourceModelOptions_assumingOAICompat.deepseekCoderV2,
+		...openSourceModelOptions_assumingOAICompat.deepseekR1,
 		contextWindow: 64_000,
-		reservedOutputTokenSpace: 8_000, // 8_000,
+		reservedOutputTokenSpace: 8_000,
 		cost: { cache_read: .14, input: .55, output: 2.19, },
 		downloadable: false,
 	},

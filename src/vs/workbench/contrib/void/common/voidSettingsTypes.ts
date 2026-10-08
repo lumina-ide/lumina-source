@@ -265,9 +265,6 @@ export const displayInfoOfSettingName = (providerName: ProviderName, settingName
 	else if (settingName === 'maxTokens') {
 		return { title: 'Max Response Tokens', placeholder: '2048' }
 	}
-	else if (settingName === 'systemPrompt') {
-		return { title: 'Custom System Prompt', placeholder: 'Optional system instructions...' }
-	}
 	else if (settingName === 'repeatPenalty') {
 		return { title: 'Repetition Penalty', placeholder: '1.1' }
 	}
@@ -290,7 +287,6 @@ const defaultCustomSettings: Record<CustomSettingName, undefined> = {
 	port: undefined,
 	temperature: undefined,
 	maxTokens: undefined,
-	systemPrompt: undefined,
 	repeatPenalty: undefined,
 }
 

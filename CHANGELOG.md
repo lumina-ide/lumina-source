@@ -2,6 +2,26 @@
 
 All notable changes to Lumina are documented here.
 
+## [0.1.27] — 2026-10-07
+
+### Added — Llama b11476 & CUDA 13.4 Integration
+- **Updated Local Llama Engine** — Upgraded local `llama.cpp` inference engine to build `b11476` (commit `988190680`).
+- **NVIDIA CUDA 13.4 DLLs** — Bundled official CUDA 13.4 runtime libraries (`cudart64_13.dll`, `cublas64_13.dll`, `cublasLt64_13.dll`, `ggml-cuda.dll`) alongside updated Vulkan and optimized CPU micro-architectures.
+
+### Added — Reasoning & Thinking Models Support
+- **Thinking Models Auto-detection** — Added automatic fallback identification for reasoning/thinking models (`deepseek-r1`, `qwq`, `reasoner`, `thinking`, `thinker`).
+- **Configurable Thinking Budget** — Integrated reasoning budget slider (`budget_slider`, 1024 to 16384 tokens) with dedicated `reasoningReservedOutputTokenSpace` (8192 tokens) and context windows up to 128k.
+- **Corrected DeepSeek API Mapping** — Fixed `deepseek-chat` to inherit `deepseekCoderV3` capabilities and `deepseek-reasoner` to inherit `deepseekR1` reasoning capabilities.
+
+### Fixed — Agent Autonomy & Tool Calling Reliability
+- **Proactive & Grounded Agent Execution** — Re-architected internal system prompts to enforce autonomous context inspection (`read_file`, `ls_dir`, `search_for_files`, etc.) before making assumptions.
+- **Direct Workspace Modifications** — Enforced direct usage of file editing tools (`edit_file`, `rewrite_file`, `run_command`) in Agent mode instead of outputting raw text diffs in the chat.
+- **Removed Conflicting Custom System Prompt** — Removed legacy `systemPrompt` field from provider settings that caused duplicate, conflicting prompt injections and erratic tool invocation.
+- **Token Truncation Decoupling** — Removed rigid token caps that prematurely cut off thinking models in OpenAI-compatible and local APIs, allowing endpoints to manage their generation memory safely.
+
+### Fixed — Build & Toolchain
+- **Optional Windows 10 SDK / signtool** — Added automated build patch (`build/lib/patch-gulp-electron.cjs`) hooked into `build/npm/postinstall.js` to eliminate fatal build failures on Windows systems lacking Windows 10 SDK / `signtool.exe`.
+
 ---
 
 ## [0.1.24] — 2026-10-02

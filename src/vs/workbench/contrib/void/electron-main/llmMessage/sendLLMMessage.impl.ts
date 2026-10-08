@@ -283,7 +283,7 @@ const _sendOpenAICompatibleChat = async ({ messages, onText, onFinalMessage, onE
 
     // tools
     const potentialTools = openAITools(chatMode, mcpTools)
-    const nativeToolsObj = potentialTools && (specialToolFormat === 'openai-style' || specialToolFormat === undefined) ?
+    const nativeToolsObj = potentialTools && specialToolFormat === 'openai-style' ?
         { tools: potentialTools } as const
         : {}
 
@@ -297,7 +297,6 @@ const _sendOpenAICompatibleChat = async ({ messages, onText, onFinalMessage, onE
         model: modelName,
         messages: messages as any,
         stream: true,
-        max_completion_tokens: 8192, // Garante espaço seguro para modelos de thinking em qualquer API compatível
         ...nativeToolsObj,
         ...additionalOpenAIPayload
     }
@@ -331,7 +330,9 @@ const _sendOpenAICompatibleChat = async ({ messages, onText, onFinalMessage, onE
         options.temperature = !isNaN(temp) ? temp : 0.1;
 
         const maxTok = parseInt(thisConfig.maxTokens);
-        options.max_completion_tokens = !isNaN(maxTok) ? maxTok : 8192;
+        if (!isNaN(maxTok) && maxTok > 0) {
+            options.max_completion_tokens = maxTok;
+        }
 
         const repPen = parseFloat((thisConfig as any).repeatPenalty || '1.1');
         if (!isNaN(repPen)) {
@@ -343,21 +344,6 @@ const _sendOpenAICompatibleChat = async ({ messages, onText, onFinalMessage, onE
             '<|end_of_text|>',
             '<|im_start|>',
         ];
-
-        const customSystemPrompt = thisConfig.systemPrompt;
-        if (customSystemPrompt) {
-            const messagesCopy = [...options.messages];
-            const systemMsgIndex = messagesCopy.findIndex(m => m.role === 'system');
-            if (systemMsgIndex !== -1) {
-                messagesCopy[systemMsgIndex] = {
-                    ...messagesCopy[systemMsgIndex],
-                    content: messagesCopy[systemMsgIndex].content + "\n\n" + customSystemPrompt
-                };
-            } else {
-                messagesCopy.unshift({ role: 'system', content: customSystemPrompt });
-            }
-            options.messages = messagesCopy as any;
-        }
     }
 
     // open source models - manually parse think tokens
