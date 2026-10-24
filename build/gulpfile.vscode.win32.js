@@ -24,6 +24,14 @@ const issPath = path.join(__dirname, 'win32', 'code.iss');
 const innoSetupPath = path.join(path.dirname(path.dirname(require.resolve('innosetup'))), 'bin', 'ISCC.exe');
 const signWin32Path = path.join(repoPath, 'build', 'azure-pipelines', 'common', 'sign-win32');
 
+function toWinePath(p) {
+	if (process.platform === 'win32') {
+		return p;
+	}
+	const absPath = path.resolve(p);
+	return 'Z:' + absPath.replace(/\//g, '\\');
+}
+
 function packageInnoSetup(iss, options, cb) {
 	options = options || {};
 
@@ -42,13 +50,20 @@ function packageInnoSetup(iss, options, cb) {
 	keys.forEach(key => assert(typeof definitions[key] === 'string', `Missing value for '${key}' in Inno Setup package step`));
 
 	const defs = keys.map(key => `/d${key}=${definitions[key]}`);
+	const isWine = process.platform !== 'win32';
+	const actualIss = isWine ? toWinePath(iss) : iss;
+	const signToolArg = `/sesrp=node ${isWine ? toWinePath(signWin32Path) : signWin32Path} $f`;
 	const args = [
-		iss,
+		actualIss,
 		...defs,
-		`/sesrp=node ${signWin32Path} $f`
+		signToolArg
 	];
 
-	cp.spawn(innoSetupPath, args, { stdio: ['ignore', 'inherit', 'inherit'] })
+	const cmd = isWine ? 'wine' : innoSetupPath;
+	const cmdArgs = isWine ? [innoSetupPath, ...args] : args;
+	const env = isWine ? { ...process.env, WINEDEBUG: '-all', DISPLAY: '', WINEDLLOVERRIDES: 'mscoree,mshtml=' } : process.env;
+
+	cp.spawn(cmd, cmdArgs, { stdio: ['ignore', 'inherit', 'inherit'], env })
 		.on('error', cb)
 		.on('exit', code => {
 			if (code === 0) {
@@ -104,11 +119,11 @@ function buildWin32Setup(arch, target) {
 			AppUserId: product.win32AppUserModelId,
 			ArchitecturesAllowed: { 'x64': 'x64', 'arm64': 'arm64' }[arch],
 			ArchitecturesInstallIn64BitMode: { 'x64': 'x64', 'arm64': 'arm64' }[arch],
-			SourceDir: sourcePath,
-			RepoDir: repoPath,
-			OutputDir: outputPath,
+			SourceDir: toWinePath(sourcePath),
+			RepoDir: toWinePath(repoPath),
+			OutputDir: toWinePath(outputPath),
 			InstallTarget: target,
-			ProductJsonPath: productJsonPath,
+			ProductJsonPath: toWinePath(productJsonPath),
 			Quality: quality
 		};
 

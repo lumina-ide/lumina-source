@@ -228,7 +228,12 @@ async function main(arch: string = process.arch): Promise<void> {
 	const version = electronVersion;
 	const electronPath = path.join(root, '.build', 'electron');
 	const versionFile = path.join(electronPath, 'version');
-	const isUpToDate = fs.existsSync(versionFile) && fs.readFileSync(versionFile, 'utf8') === `${version}`;
+	const executable = process.platform === 'darwin'
+		? path.join(electronPath, `${product.nameLong}.app`, 'Contents', 'MacOS', 'Electron')
+		: path.join(electronPath, process.platform === 'win32' ? `${product.nameShort}.exe` : product.applicationName);
+	const isUpToDate = fs.existsSync(versionFile) &&
+		fs.readFileSync(versionFile, 'utf8') === `${version}` &&
+		fs.existsSync(executable);
 
 	if (!isUpToDate) {
 		await util.rimraf(electronPath)();

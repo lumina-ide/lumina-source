@@ -243,7 +243,12 @@ async function main(arch = process.arch) {
     const version = electronVersion;
     const electronPath = path_1.default.join(root, '.build', 'electron');
     const versionFile = path_1.default.join(electronPath, 'version');
-    const isUpToDate = fs_1.default.existsSync(versionFile) && fs_1.default.readFileSync(versionFile, 'utf8') === `${version}`;
+    const executable = process.platform === 'darwin'
+        ? path_1.default.join(electronPath, `${product.nameLong}.app`, 'Contents', 'MacOS', 'Electron')
+        : path_1.default.join(electronPath, process.platform === 'win32' ? `${product.nameShort}.exe` : product.applicationName);
+    const isUpToDate = fs_1.default.existsSync(versionFile) &&
+        fs_1.default.readFileSync(versionFile, 'utf8') === `${version}` &&
+        fs_1.default.existsSync(executable);
     if (!isUpToDate) {
         await util.rimraf(electronPath)();
         await util.streamToPromise(getElectron(arch)());

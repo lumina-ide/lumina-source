@@ -179,8 +179,14 @@ function compileTask(src, out, build, options = {}) {
 function watchTask(out, build, srcPath = 'src') {
     const task = () => {
         const compile = createCompile(srcPath, { build, emitError: false, transpileOnly: false, preserveEnglish: false });
-        const src = gulp_1.default.src(`${srcPath}/**`, { base: srcPath });
-        const watchSrc = watch(`${srcPath}/**`, { base: srcPath, readDelay: 200 });
+        const globs = [
+            `${srcPath}/**`,
+            `!**/tsup.config.bundled_*`,
+            `!**/*.bundled_*.cjs`,
+            `!**/*.bundled_*.mjs`,
+        ];
+        const src = gulp_1.default.src(globs, { base: srcPath });
+        const watchSrc = watch(globs, { base: srcPath, readDelay: 200 });
         const generator = new MonacoGenerator(true);
         generator.execute();
         return watchSrc

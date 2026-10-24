@@ -127,6 +127,8 @@ const featureNameMap: { display: string, featureName: FeatureName }[] = [
 ];
 
 const AddProvidersPage = ({ pageIndex, setPageIndex }: { pageIndex: number, setPageIndex: (index: number) => void }) => {
+	const accessor = useAccessor();
+	const voidSettingsService = accessor.get('IVoidSettingsService');
 	const [currentTab, setCurrentTab] = useState<TabName>('Free');
 	const settingsState = useSettingsState();
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -251,7 +253,16 @@ const AddProvidersPage = ({ pageIndex, setPageIndex }: { pageIndex: number, setP
 				{errorMessage && (
 					<div className="text-amber-400 mb-2 text-sm opacity-80 transition-opacity duration-300">{errorMessage}</div>
 				)}
-				<div className="flex items-center gap-2">
+				<div className="flex items-center gap-3">
+					<button
+						type="button"
+						className="text-xs text-void-fg-3 hover:text-void-fg-1 underline cursor-pointer mr-auto transition-colors"
+						onClick={() => {
+							voidSettingsService.setGlobalSetting('isOnboardingComplete', true);
+						}}
+					>
+						Skip for now →
+					</button>
 					<PreviousButton onClick={() => setPageIndex(pageIndex - 1)} />
 					<NextButton
 						onClick={() => {
@@ -607,11 +618,22 @@ const VoidOnboardingContent = () => {
 					<FadeIn
 						delayMs={1000}
 					>
-						<PrimaryActionButton
-							onClick={() => { setPageIndex(1) }}
-						>
-							Get Started
-						</PrimaryActionButton>
+						<div className="flex flex-col items-center gap-3">
+							<PrimaryActionButton
+								onClick={() => { setPageIndex(1) }}
+							>
+								Get Started
+							</PrimaryActionButton>
+							<button
+								type="button"
+								className="text-xs text-void-fg-3 hover:text-void-fg-1 underline cursor-pointer transition-colors"
+								onClick={() => {
+									voidSettingsService.setGlobalSetting('isOnboardingComplete', true);
+								}}
+							>
+								Skip for now and enter Lumina →
+							</button>
+						</div>
 					</FadeIn>
 
 				</div>

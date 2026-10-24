@@ -25,6 +25,7 @@ Visual Studio Code is a new choice of tool that combines the simplicity of a cod
 %define __strip @@STRIP@@
 
 %install
+cd %{_topdir}/BUILD
 # Destination directories
 mkdir -p %{buildroot}%{_bindir}
 mkdir -p %{buildroot}%{_datadir}/%{name}

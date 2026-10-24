@@ -115,7 +115,12 @@ function prepareDebPackage(arch) {
 
 		const all = es.merge(control, templates, postinst, postrm, prerm, desktops, appdata, workspaceMime, icon, bash_completion, zsh_completion, code);
 
-		return all.pipe(vfs.dest(destination));
+		return new Promise((resolve, reject) => {
+			all.pipe(vfs.dest(destination))
+				.on('end', resolve)
+				.on('finish', resolve)
+				.on('error', reject);
+		});
 	};
 }
 
@@ -216,7 +221,12 @@ function prepareRpmPackage(arch) {
 
 		const all = es.merge(code, desktops, appdata, workspaceMime, icon, bash_completion, zsh_completion, spec, specIcon);
 
-		return all.pipe(vfs.dest(getRpmBuildPath(rpmArch)));
+		return new Promise((resolve, reject) => {
+			all.pipe(vfs.dest(getRpmBuildPath(rpmArch)))
+				.on('end', resolve)
+				.on('finish', resolve)
+				.on('error', reject);
+		});
 	};
 }
 
@@ -308,13 +318,13 @@ BUILD_TARGETS.forEach(({ arch }) => {
 	const debArch = getDebPackageArch(arch);
 	const prepareDebTask = task.define(`vscode-linux-${arch}-prepare-deb`, task.series(rimraf(`.build/linux/deb/${debArch}`), prepareDebPackage(arch)));
 	gulp.task(prepareDebTask);
-	const buildDebTask = task.define(`vscode-linux-${arch}-build-deb`, buildDebPackage(arch));
+	const buildDebTask = task.define(`vscode-linux-${arch}-build-deb`, task.series(prepareDebTask, buildDebPackage(arch)));
 	gulp.task(buildDebTask);
 
 	const rpmArch = getRpmPackageArch(arch);
 	const prepareRpmTask = task.define(`vscode-linux-${arch}-prepare-rpm`, task.series(rimraf(`.build/linux/rpm/${rpmArch}`), prepareRpmPackage(arch)));
 	gulp.task(prepareRpmTask);
-	const buildRpmTask = task.define(`vscode-linux-${arch}-build-rpm`, buildRpmPackage(arch));
+	const buildRpmTask = task.define(`vscode-linux-${arch}-build-rpm`, task.series(prepareRpmTask, buildRpmPackage(arch)));
 	gulp.task(buildRpmTask);
 
 	const prepareSnapTask = task.define(`vscode-linux-${arch}-prepare-snap`, task.series(rimraf(`.build/linux/snap/${arch}`), prepareSnapPackage(arch)));
