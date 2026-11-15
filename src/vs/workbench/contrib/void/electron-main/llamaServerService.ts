@@ -51,8 +51,25 @@ export class LlamaServerService extends Disposable {
 	}
 
 	private _detectBackend(llamaResourcesPath: string): 'cuda' | 'vulkan' | 'cpu' {
+		if (process.platform === 'linux') {
+			try {
+				const cudaBin = path.join(llamaResourcesPath, `${process.platform}-${process.arch}`, 'cuda', 'llama-server');
+				if (fs.existsSync(cudaBin) && (fs.existsSync('/dev/nvidia0') || fs.existsSync('/usr/lib/libcuda.so') || fs.existsSync('/usr/lib/x86_64-linux-gnu/libcuda.so'))) {
+					this.logService.info('[LlamaServerService] NVIDIA GPU detected on Linux (CUDA)');
+					return 'cuda';
+				}
+				const vulkanBin = path.join(llamaResourcesPath, `${process.platform}-${process.arch}`, 'vulkan', 'llama-server');
+				if (fs.existsSync(vulkanBin) && (fs.existsSync('/usr/lib/libvulkan.so.1') || fs.existsSync('/usr/lib/x86_64-linux-gnu/libvulkan.so.1'))) {
+					this.logService.info('[LlamaServerService] Vulkan capability detected on Linux');
+					return 'vulkan';
+				}
+			} catch (err) {
+				this.logService.error('[LlamaServerService] Error detecting Linux GPU/Vulkan:', err);
+			}
+			return 'cpu';
+		}
+
 		if (process.platform !== 'win32') {
-			// fallback on other platforms (e.g. mac/linux - currently win32 binaries are supplied)
 			return 'cpu';
 		}
 
@@ -136,8 +153,35 @@ export class LlamaServerService extends Disposable {
 
 			const llamaResourcesPath = this._getLlamaResourcesPath();
 			const backend = this._detectBackend(llamaResourcesPath);
-			const workingDir = path.join(llamaResourcesPath, 'win32-x64', backend);
-			const binaryPath = path.join(workingDir, 'llama-server.exe');
+			let workingDir: string;
+			let binaryPath: string;
+
+			if (process.platform === 'win32') {
+				workingDir = path.join(llamaResourcesPath, 'win32-x64', backend);
+				binaryPath = path.join(workingDir, 'llama-server.exe');
+			} else {
+				const platformDir = `${process.platform}-${process.arch}`;
+				const bundledDir = path.join(llamaResourcesPath, platformDir, backend);
+				const bundledBin = path.join(bundledDir, 'llama-server');
+				const directDir = path.join(llamaResourcesPath, platformDir);
+				const directBin = path.join(directDir, 'llama-server');
+				if (fs.existsSync(bundledBin)) {
+					workingDir = bundledDir;
+					binaryPath = bundledBin;
+				} else if (fs.existsSync(directBin)) {
+					workingDir = directDir;
+					binaryPath = directBin;
+				} else {
+					const systemCandidates = ['/usr/bin/llama-server', '/usr/local/bin/llama-server'];
+					const foundSystem = systemCandidates.find(p => fs.existsSync(p));
+					if (foundSystem) {
+						binaryPath = foundSystem;
+						workingDir = path.dirname(foundSystem);
+					} else {
+						throw new Error(`Native llama-server binary not found for ${process.platform} (${process.arch}). Install llama.cpp (llama-server) in /usr/bin or use Ollama / an API provider.`);
+					}
+				}
+			}
 
 			if (!fs.existsSync(binaryPath)) {
 				throw new Error(`Llama binary not found at: "${binaryPath}"`);

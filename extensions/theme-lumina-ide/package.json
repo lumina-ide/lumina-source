@@ -15,7 +15,7 @@
     "color-theme"
   ],
   "version": "1.0.0",
-  "publisher": "Lumina-IDE",
+  "publisher": "Lumina",
   "icon": "icon.png",
   "license": "MIT",
   "engines": {
